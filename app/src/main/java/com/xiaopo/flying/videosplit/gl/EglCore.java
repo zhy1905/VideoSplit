@@ -68,9 +68,8 @@ public final class EglCore {
   /**
    * Prepares EGL display and context.
    * <p>
-   *
    * @param sharedContext The context to share, or null if sharing is not desired.
-   * @param flags         Configuration bit flags, e.g. FLAG_RECORDABLE.
+   * @param flags Configuration bit flags, e.g. FLAG_RECORDABLE.
    */
   public EglCore(EGLContext sharedContext, int flags) {
     if (mEGLDisplay != EGL14.EGL_NO_DISPLAY) {
@@ -139,7 +138,7 @@ public final class EglCore {
   /**
    * Finds a suitable EGLConfig.
    *
-   * @param flags   Bit flags from constructor.
+   * @param flags Bit flags from constructor.
    * @param version Must be 2 or 3.
    */
   private EGLConfig getConfig(int flags, int version) {

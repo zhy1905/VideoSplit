@@ -6,7 +6,10 @@ import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.TextureView;
+import android.view.View;
+import android.widget.Button;
 
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
 import com.xiaopo.flying.videosplit.layout.ThreeLayout;
@@ -14,13 +17,16 @@ import com.yanzhenjie.permission.AndPermission;
 import com.yanzhenjie.permission.PermissionNo;
 import com.yanzhenjie.permission.PermissionYes;
 
+import java.io.File;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements TextureView.SurfaceTextureListener, SpiltVideoRenderer.OnRendererReadyListener {
-
+  private static final String TAG = "MainActivity";
   private TextureView textureView;
   private SurfaceTexture surfaceTexture;
   private SpiltVideoRenderer renderer;
+  private Button btnRecord;
+  private Button btnStop;
 
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -68,6 +74,22 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
 
   private void initView() {
     textureView = findViewById(R.id.texture_view);
+    btnRecord = findViewById(R.id.btn_record);
+    btnStop = findViewById(R.id.btn_stop);
+
+    btnRecord.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+      renderer.startRecording();
+      }
+    });
+
+    btnStop.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        renderer.stopRecording();
+      }
+    });
   }
 
   @Override
@@ -83,7 +105,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     threeLayout.layout();
     shaderProgram.setPuzzleLayout(threeLayout);
 
-    renderer = new SpiltVideoRenderer(surfaceTexture, width, height, shaderProgram);
+    File file = FileUtil.getNewFile(MainActivity.this, "VideoSplit", "test.mp4");
+    Log.d(TAG, "onSurfaceTextureAvailable: file is " + file.getAbsolutePath());
+    renderer = new SpiltVideoRenderer(file, surfaceTexture, width, height, shaderProgram);
     renderer.setViewport(width, height);
     renderer.setOnRendererReadyListener(this);
     renderer.start();
