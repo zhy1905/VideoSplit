@@ -1,6 +1,5 @@
 package com.xiaopo.flying.videosplit;
 
-import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,12 +15,8 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   private static final String TAG = SpiltVideoRenderer.class.getSimpleName();
   private static final String THREAD_NAME = "CameraRendererThread";
 
-  protected Context context;
-
-  protected int surfaceWidth;
-  protected int surfaceHeight;
-
-  protected float surfaceAspectRatio;
+  private int surfaceWidth;
+  private int surfaceHeight;
 
   private SurfaceTexture surfaceTexture;
 
@@ -34,20 +29,15 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
 
   private SplitShaderProgram shaderProgram;
 
-  public SpiltVideoRenderer(Context context, SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
-    init(context, texture, width, height, shaderProgram);
+  SpiltVideoRenderer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
+    init(texture, width, height, shaderProgram);
   }
 
-  private void init(Context context, SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
+  private void init(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
     this.setName(THREAD_NAME);
-
-    this.context = context;
     this.surfaceTexture = texture;
-
     this.surfaceWidth = width;
     this.surfaceHeight = height;
-    this.surfaceAspectRatio = (float) width / height;
-
     this.shaderProgram = shaderProgram;
   }
 
@@ -55,12 +45,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     setViewport(surfaceWidth, surfaceHeight);
   }
 
-
-  /**
-   * Initialize all necessary components for GLES rendering, creating window surfaces for drawing
-   * the preview as well as the surface that will be used by MediaRecorder for recording
-   */
-  public void initGL() {
+  private void initGL() {
     eglCore = new EglCore(null, EglCore.FLAG_RECORDABLE | EglCore.FLAG_TRY_GLES3);
 
     //create preview surface
@@ -70,7 +55,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     initGLComponents();
   }
 
-  protected void initGLComponents() {
+  private void initGLComponents() {
     shaderProgram.assemble();
     shaderProgram.prepare();
     shaderProgram.setOnFrameAvailableListener(this);
@@ -78,18 +63,13 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     onSetupComplete();
   }
 
-  public void deinitGL() {
+  private void deinitGL() {
     shaderProgram.release();
     windowSurface.release();
     eglCore.release();
   }
 
-  /**
-   * called when all setup is complete on basic GL stuffs
-   * override for adding textures and other shaders and make sure to call
-   * super so that we can let them know we're done
-   */
-  protected void onSetupComplete() {
+  private void onSetupComplete() {
     onRendererReadyListener.onRendererReady();
   }
 
@@ -118,11 +98,11 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     onRendererReadyListener.onRendererFinished();
   }
 
-  public void shutdown() {
+  void shutdown() {
     Looper.myLooper().quit();
   }
 
-  public void play(){
+  void play(){
     shaderProgram.play();
   }
 
@@ -155,19 +135,19 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     }
   }
 
-  public void draw() {
+  private void draw() {
     shaderProgram.run();
   }
 
-  public void setViewport(int viewportWidth, int viewportHeight) {
+  void setViewport(int viewportWidth, int viewportHeight) {
     shaderProgram.setViewport(viewportWidth,viewportHeight);
   }
 
-  public RenderHandler getRenderHandler() {
+  RenderHandler getRenderHandler() {
     return handler;
   }
 
-  public void setOnRendererReadyListener(OnRendererReadyListener listener) {
+  void setOnRendererReadyListener(OnRendererReadyListener listener) {
     this.onRendererReadyListener = listener;
 
   }
@@ -179,11 +159,11 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
 
     private WeakReference<SpiltVideoRenderer> mWeakRenderer;
 
-    public RenderHandler(SpiltVideoRenderer rt) {
+    RenderHandler(SpiltVideoRenderer rt) {
       mWeakRenderer = new WeakReference<>(rt);
     }
 
-    public void sendShutdown() {
+    void sendShutdown() {
       sendMessage(obtainMessage(RenderHandler.MSG_SHUTDOWN));
     }
 
@@ -207,6 +187,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   }
 
   public interface OnRendererReadyListener {
+
     void onRendererReady();
 
     void onRendererFinished();

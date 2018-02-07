@@ -1,10 +1,11 @@
 package com.xiaopo.flying.videosplit;
 
 import android.graphics.SurfaceTexture;
-import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 
+import com.xiaopo.flying.puzzlekit.Area;
+import com.xiaopo.flying.puzzlekit.PuzzleLayout;
 import com.xiaopo.flying.videosplit.gl.BufferUtil;
 import com.xiaopo.flying.videosplit.gl.ShaderProgram;
 
@@ -58,9 +59,13 @@ public class SplitShaderProgram extends ShaderProgram {
 
   private float[] projectionMatrix = new float[16];
   private float[] viewMatrix = new float[16];
-  private float[] cameraTransformMatrix = new float[16];
 
   private ArrayList<VideoPiece> videoPieces = new ArrayList<>();
+  private PuzzleLayout puzzleLayout;
+
+  public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
+    this.puzzleLayout = puzzleLayout;
+  }
 
   public void addPiece(final String path) {
     videoPieces.add(new VideoPiece(path));
@@ -116,13 +121,16 @@ public class SplitShaderProgram extends ShaderProgram {
     final int textureMatrixHandle = getParameterHandle(INDEX_TEXTURE_MATRIX);
     final int matrixHandle = getParameterHandle(INDEX_MATRIX);
 
-    videoPieces.get(0).setUniformsAndAttribs(textureHandle, textureMatrixHandle);
-    videoPieces.get(0).setMatrix(540, 0, 1080, 608, matrixHandle, viewMatrix, projectionMatrix);
-    drawElements();
-
-    videoPieces.get(1).setUniformsAndAttribs(textureHandle, textureMatrixHandle);
-    videoPieces.get(1).setMatrix(-540, 0, 1080, 608, matrixHandle, viewMatrix, projectionMatrix);
-    drawElements();
+    final int areaCount = puzzleLayout.getAreaCount();
+    final int pieceCount = videoPieces.size();
+    for (int i = 0; i < areaCount; i++) {
+      Area area = puzzleLayout.getArea(i);
+      VideoPiece piece = videoPieces.get(i % pieceCount);
+      piece.setDisplayArea(area.getAreaRect());
+      piece.setTexture(textureHandle, textureMatrixHandle);
+      piece.setMatrix(matrixHandle, viewMatrix, projectionMatrix);
+      drawElements();
+    }
   }
 
   @Override
@@ -133,7 +141,6 @@ public class SplitShaderProgram extends ShaderProgram {
     }
     videoPieces.clear();
   }
-
 
   private void drawElements() {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vertexBufferId);
@@ -164,7 +171,7 @@ public class SplitShaderProgram extends ShaderProgram {
     }
   }
 
-  public void play(){
+  public void play() {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.play();
     }

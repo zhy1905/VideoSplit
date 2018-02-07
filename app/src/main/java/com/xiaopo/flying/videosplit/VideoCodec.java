@@ -12,24 +12,24 @@ import android.view.Surface;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class VideoPlayer {
+public class VideoCodec {
   private static final String TAG = "TAG";
   private static final long TIMEOUT_US = 10000;
-//  private IPlayerCallBack callBack;
   private VideoThread videoThread;
   private AudioThread audioThread;
   private boolean isPlaying;
   private String filePath;
   private Surface surface;
+  private OnVideoInfoListener onVideoInfoListener;
 
-  public VideoPlayer(Surface surface, String filePath) {
+  public VideoCodec(Surface surface, String filePath) {
     this.surface = surface;
     this.filePath = filePath;
   }
 
-//  public void setCallBack(IPlayerCallBack callBack) {
-//    this.callBack = callBack;
-//  }
+  public void setOnVideoInfoListener(OnVideoInfoListener onVideoInfoListener) {
+    this.onVideoInfoListener = onVideoInfoListener;
+  }
 
   public boolean isPlaying() {
     return isPlaying;
@@ -41,10 +41,10 @@ public class VideoPlayer {
       videoThread = new VideoThread();
       videoThread.start();
     }
-    if (audioThread == null) {
-      audioThread = new AudioThread();
-      audioThread.start();
-    }
+//    if (audioThread == null) {
+//      audioThread = new AudioThread();
+//      audioThread.start();
+//    }
   }
 
   public void stop() {
@@ -53,7 +53,7 @@ public class VideoPlayer {
 
   public void destroy() {
     stop();
-    if (audioThread != null) audioThread.interrupt();
+//    if (audioThread != null) audioThread.interrupt();
     if (videoThread != null) videoThread.interrupt();
   }
 
@@ -122,7 +122,9 @@ public class VideoPlayer {
         int width = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
         int height = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
         float time = mediaFormat.getLong(MediaFormat.KEY_DURATION) / 1000000;
-//        callBack.videoAspect(width, height, time);
+        if (onVideoInfoListener!=null){
+          onVideoInfoListener.onVideoInfoParsed(width, height, time);
+        }
         videoExtractor.selectTrack(videoTrackIndex);
         try {
           videoCodec = MediaCodec.createDecoderByType(mediaFormat.getString(MediaFormat.KEY_MIME));
@@ -302,5 +304,9 @@ public class VideoPlayer {
       audioTrack.release();
     }
 
+  }
+
+  public interface OnVideoInfoListener {
+    void onVideoInfoParsed(int width, int height, float time);
   }
 }
