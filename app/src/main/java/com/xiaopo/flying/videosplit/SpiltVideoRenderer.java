@@ -9,6 +9,7 @@ import android.os.Message;
 import android.util.Log;
 
 import com.xiaopo.flying.videosplit.gl.EglCore;
+import com.xiaopo.flying.videosplit.gl.ShaderProgram;
 import com.xiaopo.flying.videosplit.gl.WindowSurface;
 
 import java.io.File;
@@ -17,15 +18,17 @@ import java.lang.ref.WeakReference;
 
 public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrameAvailableListener {
   private static final String TAG = SpiltVideoRenderer.class.getSimpleName();
-  private static final String THREAD_NAME = "CameraRendererThread";
+  private static final String THREAD_NAME = "SpiltVideoRenderer";
+  private static final int BIT_RATE = 4000000;
 
+  private final Object lock = new Object();
   private int surfaceWidth;
   private int surfaceHeight;
 
-  private SurfaceTexture surfaceTexture;
+  private SurfaceTexture previewSurfaceTexture;
 
   private EglCore eglCore;
-  private WindowSurface windowSurface;
+  private WindowSurface previewWindowSurface;
 
   private RenderHandler handler;
   private OnRendererReadyListener onRendererReadyListener;
@@ -33,14 +36,11 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   private SplitShaderProgram shaderProgram;
 
   private WindowSurface inputWindowSurface;
-  private File outputFile;
-  private boolean isRecording;
-  private TextureMovieEncoder2 videoEncoder;
+  private TextureEncoder videoEncoder;
 
-  SpiltVideoRenderer(File outputFile, SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
+  SpiltVideoRenderer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
     this.setName(THREAD_NAME);
-    this.outputFile = outputFile;
-    this.surfaceTexture = texture;
+    this.previewSurfaceTexture = texture;
     this.surfaceWidth = width;
     this.surfaceHeight = height;
     this.shaderProgram = shaderProgram;
@@ -54,20 +54,8 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     eglCore = new EglCore(null, EglCore.FLAG_RECORDABLE | EglCore.FLAG_TRY_GLES3);
 
     //create preview surface
-    windowSurface = new WindowSurface(eglCore, surfaceTexture);
-    windowSurface.makeCurrent();
-    final int VIDEO_WIDTH = surfaceWidth;
-    final int VIDEO_HEIGHT = surfaceHeight;
-    int BIT_RATE = 4000000;
-    VideoEncoderCore encoderCore;
-    try {
-      encoderCore = new VideoEncoderCore(VIDEO_WIDTH, VIDEO_HEIGHT,
-          BIT_RATE, outputFile);
-    } catch (IOException ioe) {
-      throw new RuntimeException(ioe);
-    }
-    inputWindowSurface = new WindowSurface(eglCore, encoderCore.getInputSurface(), true);
-    videoEncoder = new TextureMovieEncoder2(encoderCore);
+    previewWindowSurface = new WindowSurface(eglCore, previewSurfaceTexture);
+    previewWindowSurface.makeCurrent();
 
     initGLComponents();
   }
@@ -82,7 +70,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
 
   private void deinitGL() {
     shaderProgram.release();
-    windowSurface.release();
+    previewWindowSurface.release();
     eglCore.release();
   }
 
@@ -115,39 +103,71 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     onRendererReadyListener.onRendererFinished();
   }
 
-  void shutdown() {
+  public void shutdown() {
     Looper.myLooper().quit();
   }
 
-  void play() {
+  public void play() {
     shaderProgram.play();
   }
 
   @Override
-  public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+  public void onFrameAvailable(SurfaceTexture previewSurfaceTexture) {
+    handler.sendEmptyMessage(RenderHandler.MSG_RENDER);
+  }
+
+  public void startRecording(File outputFile ) {
+    synchronized (lock) {
+      TextureRecorder muxer;
+      try {
+        muxer = new TextureRecorder(surfaceWidth, surfaceHeight,
+            BIT_RATE, outputFile);
+      } catch (IOException ioe) {
+        throw new RuntimeException(ioe);
+      }
+      inputWindowSurface = new WindowSurface(eglCore, muxer.getInputSurface(), true);
+      videoEncoder = new TextureEncoder(muxer);
+    }
+  }
+
+  public void stopRecording() {
+    synchronized (lock) {
+      if (videoEncoder != null) {
+        Log.d(TAG, "stopping recorder, mVideoEncoder=" + videoEncoder);
+        videoEncoder.stopRecording();
+        videoEncoder = null;
+      }
+      if (inputWindowSurface != null) {
+        inputWindowSurface.release();
+        inputWindowSurface = null;
+      }
+    }
+
+  }
+
+  private void draw() {
+    shaderProgram.run();
+  }
+
+  private void render() {
     boolean swapResult;
 
-    synchronized (this) {
+    synchronized (lock) {
       shaderProgram.updatePreviewTexture();
 
       if (eglCore.getGlVersion() >= 3) {
         draw();
 
-        if (isRecording) {
-          // TODO new thread to do it
-          videoEncoder.frameAvailableSoon();
-          inputWindowSurface.makeCurrentReadFrom(windowSurface);
+        if (videoEncoder != null && inputWindowSurface != null && videoEncoder.isRecording()) {
+          videoEncoder.notifyFrameAvailableSoon();
+          inputWindowSurface.makeCurrentReadFrom(previewWindowSurface);
           // Clear the pixels we're not going to overwrite with the blit.  Once again,
           // this is excessive -- we don't need to clear the entire screen.
           GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
           GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-//          GlUtil.checkGlError("before glBlitFramebuffer");
-//          Log.v(TAG, "glBlitFramebuffer: 0,0," + windowSurface.getWidth() + "," +
-//              windowSurface.getHeight() + "  " + mVideoRect.left + "," +
-//              mVideoRect.top + "," + mVideoRect.right + "," + mVideoRect.bottom +
-//              "  COLOR_BUFFER GL_NEAREST");
+          ShaderProgram.checkError("before glBlitFramebuffer");
           GLES30.glBlitFramebuffer(
-              0, 0, windowSurface.getWidth(), windowSurface.getHeight(),
+              0, 0, previewWindowSurface.getWidth(), previewWindowSurface.getHeight(),
               0, 0, inputWindowSurface.getWidth(), inputWindowSurface.getHeight(),
               GLES30.GL_COLOR_BUFFER_BIT, GLES30.GL_NEAREST);
           int err;
@@ -155,19 +175,41 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
             Log.w(TAG, "ERROR: glBlitFramebuffer failed: 0x" +
                 Integer.toHexString(err));
           }
-          inputWindowSurface.setPresentationTime(surfaceTexture.getTimestamp());
+          inputWindowSurface.setPresentationTime(previewSurfaceTexture.getTimestamp());
           inputWindowSurface.swapBuffers();
         }
 
         //swap main buff
-        windowSurface.makeCurrent();
-        swapResult = windowSurface.swapBuffers();
-      } else //gl v2
-      {
+        previewWindowSurface.makeCurrent();
+        swapResult = previewWindowSurface.swapBuffers();
+      } else {
+        //gl v2
         draw();
 
-        windowSurface.makeCurrent();
-        swapResult = windowSurface.swapBuffers();
+        if (videoEncoder != null && inputWindowSurface != null&& videoEncoder.isRecording()) {
+          // Draw for recording, swap.
+          videoEncoder.notifyFrameAvailableSoon();
+          inputWindowSurface.makeCurrent();
+          GLES20.glClearColor(0f, 0f, 0f, 1f);
+          GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
+          GLES20.glViewport(0, 0, inputWindowSurface.getWidth(), inputWindowSurface.getHeight());
+          GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+          GLES20.glScissor(0, 0, inputWindowSurface.getWidth(), inputWindowSurface.getHeight());
+          draw();
+          GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+          inputWindowSurface.setPresentationTime(previewSurfaceTexture.getTimestamp());
+          inputWindowSurface.swapBuffers();
+
+          // Restore.
+          GLES20.glViewport(0, 0, previewWindowSurface.getWidth(), previewWindowSurface.getHeight());
+        }
+
+        // Restore previous values.
+        GLES20.glViewport(0, 0, previewWindowSurface.getWidth(), previewWindowSurface.getHeight());
+
+        previewWindowSurface.makeCurrent();
+        swapResult = previewWindowSurface.swapBuffers();
       }
 
       if (!swapResult) {
@@ -178,38 +220,15 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     }
   }
 
-  public void startRecording() {
-    this.isRecording = true;
-  }
-
-  public void stopRecording() {
-    this.isRecording = false;
-    if (videoEncoder != null) {
-      Log.d(TAG, "stopping recorder, mVideoEncoder=" + videoEncoder);
-      videoEncoder.stopRecording();
-      // TODO: wait (briefly) until it finishes shutting down so we know file is
-      //       complete, or have a callback that updates the UI
-      videoEncoder = null;
-    }
-    if (inputWindowSurface != null) {
-      inputWindowSurface.release();
-      inputWindowSurface = null;
-    }
-  }
-
-  private void draw() {
-    shaderProgram.run();
-  }
-
-  void setViewport(int viewportWidth, int viewportHeight) {
+  public void setViewport(int viewportWidth, int viewportHeight) {
     shaderProgram.setViewport(viewportWidth, viewportHeight);
   }
 
-  RenderHandler getRenderHandler() {
+  public RenderHandler getRenderHandler() {
     return handler;
   }
 
-  void setOnRendererReadyListener(OnRendererReadyListener listener) {
+  public void setOnRendererReadyListener(OnRendererReadyListener listener) {
     this.onRendererReadyListener = listener;
   }
 
@@ -217,11 +236,12 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     private static final String TAG = RenderHandler.class.getSimpleName();
 
     private static final int MSG_SHUTDOWN = 0;
+    private static final int MSG_RENDER = 1;
 
-    private WeakReference<SpiltVideoRenderer> mWeakRenderer;
+    private WeakReference<SpiltVideoRenderer> weakRenderer;
 
     RenderHandler(SpiltVideoRenderer rt) {
-      mWeakRenderer = new WeakReference<>(rt);
+      weakRenderer = new WeakReference<>(rt);
     }
 
     void sendShutdown() {
@@ -230,7 +250,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
 
     @Override
     public void handleMessage(Message msg) {
-      SpiltVideoRenderer renderer = mWeakRenderer.get();
+      SpiltVideoRenderer renderer = weakRenderer.get();
       if (renderer == null) {
         Log.w(TAG, "RenderHandler.handleMessage: weak ref is null");
         return;
@@ -240,6 +260,9 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
       switch (what) {
         case MSG_SHUTDOWN:
           renderer.shutdown();
+          break;
+        case MSG_RENDER:
+          renderer.render();
           break;
         default:
           throw new RuntimeException("unknown message " + what);

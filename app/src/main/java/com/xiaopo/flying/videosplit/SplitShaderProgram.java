@@ -159,19 +159,19 @@ public class SplitShaderProgram extends ShaderProgram {
   }
 
 
-  public void updatePreviewTexture() {
+  void updatePreviewTexture() {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.getOutputTexture().updateTexImage();
     }
   }
 
-  public void setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
+  void setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.getOutputTexture().setOnFrameAvailableListener(onFrameAvailableListener);
     }
   }
 
-  public void play() {
+  void play() {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.play();
     }

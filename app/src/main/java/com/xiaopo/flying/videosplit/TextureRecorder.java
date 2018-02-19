@@ -1,19 +1,3 @@
-/*
- * Copyright 2014 Google Inc. All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.xiaopo.flying.videosplit;
 
 import android.media.MediaCodec;
@@ -27,18 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-/**
- * This class wraps up the core components used for surface-input video encoding.
- * <p>
- * Once created, frames are fed to the input surface.  Remember to provide the presentation
- * time stamp, and always call drainEncoder() before swapBuffers() to ensure that the
- * producer side doesn't get backed up.
- * <p>
- * This class is not thread-safe, with one exception: it is valid to use the input surface
- * on one thread, and drain the output on a different thread.
- */
-public class VideoEncoderCore {
-  private static final String TAG = "VideoEncoderCore";
+public class TextureRecorder {
+  private static final String TAG = "TextureRecorder";
   private static final boolean VERBOSE = false;
 
   // TODO: these ought to be configurable as well
@@ -46,20 +20,19 @@ public class VideoEncoderCore {
   private static final int FRAME_RATE = 30;               // 30fps
   private static final int IFRAME_INTERVAL = 5;           // 5 seconds between I-frames
 
-  private Surface mInputSurface;
-  private MediaMuxer mMuxer;
-  private MediaCodec mEncoder;
-  private MediaCodec.BufferInfo mBufferInfo;
-  private int mTrackIndex;
-  private boolean mMuxerStarted;
-
+  private Surface inputSurface;
+  private MediaMuxer muxer;
+  private MediaCodec encoder;
+  private MediaCodec.BufferInfo bufferInfo;
+  private int videoTrackIndex;
+  private boolean muxerStarted;
 
   /**
    * Configures encoder and muxer state, and prepares the input Surface.
    */
-  public VideoEncoderCore(int width, int height, int bitRate, File outputFile)
+  public TextureRecorder(int width, int height, int bitRate, File outputFile)
       throws IOException {
-    mBufferInfo = new MediaCodec.BufferInfo();
+    bufferInfo = new MediaCodec.BufferInfo();
 
     MediaFormat format = MediaFormat.createVideoFormat(MIME_TYPE, width, height);
 
@@ -74,10 +47,10 @@ public class VideoEncoderCore {
 
     // Create a MediaCodec encoder, and configure it with our format.  Get a Surface
     // we can use for input and wrap it with a class that handles the EGL work.
-    mEncoder = MediaCodec.createEncoderByType(MIME_TYPE);
-    mEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-    mInputSurface = mEncoder.createInputSurface();
-    mEncoder.start();
+    encoder = MediaCodec.createEncoderByType(MIME_TYPE);
+    encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+    inputSurface = encoder.createInputSurface();
+    encoder.start();
 
     // Create a MediaMuxer.  We can't add the video track and start() the muxer here,
     // because our MediaFormat doesn't have the Magic Goodies.  These can only be
@@ -85,18 +58,18 @@ public class VideoEncoderCore {
     //
     // We're not actually interested in multiplexing audio.  We just want to convert
     // the raw H.264 elementary stream we get from MediaCodec into a .mp4 file.
-    mMuxer = new MediaMuxer(outputFile.toString(),
+    muxer = new MediaMuxer(outputFile.getPath(),
         MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
 
-    mTrackIndex = -1;
-    mMuxerStarted = false;
+    videoTrackIndex = -1;
+    muxerStarted = false;
   }
 
   /**
    * Returns the encoder's input surface.
    */
   public Surface getInputSurface() {
-    return mInputSurface;
+    return inputSurface;
   }
 
   /**
@@ -104,17 +77,15 @@ public class VideoEncoderCore {
    */
   public void release() {
     if (VERBOSE) Log.d(TAG, "releasing encoder objects");
-    if (mEncoder != null) {
-      mEncoder.stop();
-      mEncoder.release();
-      mEncoder = null;
+    if (encoder != null) {
+      encoder.stop();
+      encoder.release();
+      encoder = null;
     }
-    if (mMuxer != null) {
-      // TODO: stop() throws an exception if you haven't fed it any data.  Keep track
-      //       of frames submitted, and don't call stop() if we haven't written anything.
-      mMuxer.stop();
-      mMuxer.release();
-      mMuxer = null;
+    if (muxer != null) {
+      muxer.stop();
+      muxer.release();
+      muxer = null;
     }
   }
 
@@ -134,12 +105,12 @@ public class VideoEncoderCore {
 
     if (endOfStream) {
       if (VERBOSE) Log.d(TAG, "sending EOS to encoder");
-      mEncoder.signalEndOfInputStream();
+      encoder.signalEndOfInputStream();
     }
 
-    ByteBuffer[] encoderOutputBuffers = mEncoder.getOutputBuffers();
+    ByteBuffer[] encoderOutputBuffers = encoder.getOutputBuffers();
     while (true) {
-      int encoderStatus = mEncoder.dequeueOutputBuffer(mBufferInfo, TIMEOUT_USEC);
+      int encoderStatus = encoder.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC);
       if (encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
         // no output available yet
         if (!endOfStream) {
@@ -149,19 +120,19 @@ public class VideoEncoderCore {
         }
       } else if (encoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
         // not expected for an encoder
-        encoderOutputBuffers = mEncoder.getOutputBuffers();
+        encoderOutputBuffers = encoder.getOutputBuffers();
       } else if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
         // should happen before receiving buffers, and should only happen once
-        if (mMuxerStarted) {
+        if (muxerStarted) {
           throw new RuntimeException("format changed twice");
         }
-        MediaFormat newFormat = mEncoder.getOutputFormat();
+        MediaFormat newFormat = encoder.getOutputFormat();
         Log.d(TAG, "encoder output format changed: " + newFormat);
 
         // now that we have the Magic Goodies, start the muxer
-        mTrackIndex = mMuxer.addTrack(newFormat);
-        mMuxer.start();
-        mMuxerStarted = true;
+        videoTrackIndex = muxer.addTrack(newFormat);
+        muxer.start();
+        muxerStarted = true;
       } else if (encoderStatus < 0) {
         Log.w(TAG, "unexpected result from encoder.dequeueOutputBuffer: " +
             encoderStatus);
@@ -173,32 +144,31 @@ public class VideoEncoderCore {
               " was null");
         }
 
-        if ((mBufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+        if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
           // The codec config data was pulled out and fed to the muxer when we got
           // the INFO_OUTPUT_FORMAT_CHANGED status.  Ignore it.
           if (VERBOSE) Log.d(TAG, "ignoring BUFFER_FLAG_CODEC_CONFIG");
-          mBufferInfo.size = 0;
+          bufferInfo.size = 0;
         }
 
-        if (mBufferInfo.size != 0) {
-          if (!mMuxerStarted) {
+        if (bufferInfo.size != 0) {
+          if (!muxerStarted) {
             throw new RuntimeException("muxer hasn't started");
           }
 
           // adjust the ByteBuffer values to match BufferInfo (not needed?)
-          encodedData.position(mBufferInfo.offset);
-          encodedData.limit(mBufferInfo.offset + mBufferInfo.size);
+          encodedData.position(bufferInfo.offset);
+          encodedData.limit(bufferInfo.offset + bufferInfo.size);
 
-          mMuxer.writeSampleData(mTrackIndex, encodedData, mBufferInfo);
+          muxer.writeSampleData(videoTrackIndex, encodedData, bufferInfo);
           if (VERBOSE) {
-            Log.d(TAG, "sent " + mBufferInfo.size + " bytes to muxer, ts=" +
-                mBufferInfo.presentationTimeUs);
+            Log.d(TAG, "sent " + bufferInfo.size + " bytes to muxer, ts=" +
+                bufferInfo.presentationTimeUs);
           }
         }
+        encoder.releaseOutputBuffer(encoderStatus, false);
 
-        mEncoder.releaseOutputBuffer(encoderStatus, false);
-
-        if ((mBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+        if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
           if (!endOfStream) {
             Log.w(TAG, "reached end of stream unexpectedly");
           } else {

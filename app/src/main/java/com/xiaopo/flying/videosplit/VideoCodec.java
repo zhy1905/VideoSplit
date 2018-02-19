@@ -244,7 +244,7 @@ public class VideoCodec {
       int sz = buffers[0].capacity();
       if (sz <= 0)
         sz = audioInputBufferSize;
-      byte[] mAudioOutTempBuf = new byte[sz];
+      byte[] audioOutTempBuf = new byte[sz];
 
       MediaCodec.BufferInfo audioBufferInfo = new MediaCodec.BufferInfo();
       ByteBuffer[] inputBuffers = audioCodec.getInputBuffers();
@@ -278,14 +278,14 @@ public class VideoCodec {
             //如果缓冲区里的可展示时间>当前视频播放的进度，就休眠一下
             sleepRender(audioBufferInfo, startMs);
             if (audioBufferInfo.size > 0) {
-              if (mAudioOutTempBuf.length < audioBufferInfo.size) {
-                mAudioOutTempBuf = new byte[audioBufferInfo.size];
+              if (audioOutTempBuf.length < audioBufferInfo.size) {
+                audioOutTempBuf = new byte[audioBufferInfo.size];
               }
               outputBuffer.position(0);
-              outputBuffer.get(mAudioOutTempBuf, 0, audioBufferInfo.size);
+              outputBuffer.get(audioOutTempBuf, 0, audioBufferInfo.size);
               outputBuffer.clear();
               if (audioTrack != null)
-                audioTrack.write(mAudioOutTempBuf, 0, audioBufferInfo.size);
+                audioTrack.write(audioOutTempBuf, 0, audioBufferInfo.size);
             }
             //
             audioCodec.releaseOutputBuffer(outputBufferIndex, false);
