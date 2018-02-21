@@ -7,8 +7,8 @@ import android.opengl.GLES20;
  */
 public abstract class ShaderParameter {
 
-  protected final String name;
-  public int handle;
+  final String name;
+  int handle;
 
   private ShaderParameter(String name) {
     this.name = name;

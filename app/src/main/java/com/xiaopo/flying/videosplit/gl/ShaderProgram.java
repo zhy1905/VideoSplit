@@ -28,21 +28,12 @@ public abstract class ShaderProgram {
     }
   }
 
-  private int[] linkStatus = new int[1];
   private int[] tempId = new int[1];
-  private int program = -1;
-  private int vertexShader = -1;
-  private int fragmentShader = -1;
-  private ArrayList<ShaderParameter> shaderParameters = new ArrayList<>();
   private ArrayList<Integer> vboIds = new ArrayList<>();
   private ArrayList<Integer> textureIds = new ArrayList<>();
 
   private int viewportWidth;
   private int viewportHeight;
-
-  public int getProgram() {
-    return program;
-  }
 
   public int getViewportWidth() {
     return viewportWidth;
@@ -55,36 +46,6 @@ public abstract class ShaderProgram {
   public void setViewport(int width, int height) {
     this.viewportWidth = width;
     this.viewportHeight = height;
-  }
-
-  public abstract String getVertexShader();
-
-  public abstract String getFragmentShader();
-
-  public abstract void inflateShaderParameter();
-
-  protected int inflateUniform(final String name) {
-    shaderParameters.add(ShaderParameter.uniform(name));
-    return shaderParameters.size() - 1;
-  }
-
-  protected int inflateAttribute(final String name) {
-    shaderParameters.add(ShaderParameter.attribute(name));
-    return shaderParameters.size() - 1;
-  }
-
-  protected int getParameterHandle(int index) {
-    return shaderParameters.get(index).getHandle();
-  }
-
-  public void assemble() {
-    vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, getVertexShader());
-    fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, getFragmentShader());
-    program = assembleProgram(vertexShader, fragmentShader, linkStatus);
-
-    shaderParameters.clear();
-    inflateShaderParameter();
-    loadHandle();
   }
 
   public abstract void prepare();
@@ -104,14 +65,6 @@ public abstract class ShaderProgram {
     }
     GLES20.glDeleteTextures(texIds.length, texIds, 0);
 
-    GLES20.glDeleteShader(vertexShader);
-    GLES20.glDeleteShader(fragmentShader);
-    GLES20.glDeleteProgram(program);
-
-    vertexShader = -1;
-    fragmentShader = -1;
-    program = -1;
-    shaderParameters.clear();
     vboIds.clear();
     textureIds.clear();
   }
@@ -157,43 +110,4 @@ public abstract class ShaderProgram {
     }
   }
 
-  private int loadShader(int type, String shaderCode) {
-    int shader = GLES20.glCreateShader(type);
-
-    GLES20.glShaderSource(shader, shaderCode);
-    checkError("shader source");
-    GLES20.glCompileShader(shader);
-    checkError("compile shader");
-
-    return shader;
-  }
-
-  private int assembleProgram(int vertexShader, int fragmentShader, int[] linkStatus) {
-    int program = GLES20.glCreateProgram();
-    checkError("create program");
-    if (program == 0) {
-      throw new RuntimeException("Cannot create GL program: " + GLES20.glGetError());
-    }
-    GLES20.glAttachShader(program, vertexShader);
-    checkError("attach vertex shader");
-    GLES20.glAttachShader(program, fragmentShader);
-    checkError("attach fragment shader");
-    GLES20.glLinkProgram(program);
-    checkError("link program");
-    GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0);
-    if (linkStatus[0] != GLES20.GL_TRUE) {
-      Log.e(TAG, "Could not link program: ");
-      Log.e(TAG, GLES20.glGetProgramInfoLog(program));
-      GLES20.glDeleteProgram(program);
-      program = 0;
-    }
-    return program;
-  }
-
-
-  protected void loadHandle() {
-    for (ShaderParameter shaderParameter : shaderParameters) {
-      shaderParameter.loadHandle(program);
-    }
-  }
 }

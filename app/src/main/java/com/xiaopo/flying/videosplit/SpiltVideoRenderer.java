@@ -61,7 +61,6 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   }
 
   private void initGLComponents() {
-    shaderProgram.assemble();
     shaderProgram.prepare();
     shaderProgram.setOnFrameAvailableListener(this);
 

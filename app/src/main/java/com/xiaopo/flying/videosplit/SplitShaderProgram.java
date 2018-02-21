@@ -7,6 +7,8 @@ import android.opengl.Matrix;
 import com.xiaopo.flying.puzzlekit.Area;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
 import com.xiaopo.flying.videosplit.gl.BufferUtil;
+import com.xiaopo.flying.videosplit.gl.Shader;
+import com.xiaopo.flying.videosplit.gl.ShaderParameter;
 import com.xiaopo.flying.videosplit.gl.ShaderProgram;
 
 import java.util.ArrayList;
@@ -17,11 +19,6 @@ import java.util.ArrayList;
 public class SplitShaderProgram extends ShaderProgram {
   private static final int COORDS_PER_VERTEX = 2;
   private static final int VERTEX_STRIDE = COORDS_PER_VERTEX * FLOAT_SIZE;
-
-  private static final int INDEX_POSITION = 0;
-  private static final int INDEX_MATRIX = 1;
-  private static final int INDEX_TEXTURE_MATRIX = 2;
-  private static final int INDEX_TEXTURE_SAMPLER = 3;
 
   private static final String POSITION_ATTRIBUTE = "aPosition";
   private static final String MATRIX_UNIFORM = "uMatrix";
@@ -63,6 +60,8 @@ public class SplitShaderProgram extends ShaderProgram {
   private ArrayList<VideoPiece> videoPieces = new ArrayList<>();
   private PuzzleLayout puzzleLayout;
 
+  private Shader shader;
+
   public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
     this.puzzleLayout = puzzleLayout;
   }
@@ -72,25 +71,16 @@ public class SplitShaderProgram extends ShaderProgram {
   }
 
   @Override
-  public String getVertexShader() {
-    return VERTEX_SHADER_CODE;
-  }
-
-  @Override
-  public String getFragmentShader() {
-    return FRAGMENT_SHADER_CODE;
-  }
-
-  @Override
-  public void inflateShaderParameter() {
-    inflateAttribute(POSITION_ATTRIBUTE);
-    inflateUniform(MATRIX_UNIFORM);
-    inflateUniform(TEXTURE_MATRIX_UNIFORM);
-    inflateUniform(TEXTURE_SAMPLER_UNIFORM);
-  }
-
-  @Override
   public void prepare() {
+    shader = new Shader.Builder()
+        .attachVertex(VERTEX_SHADER_CODE)
+        .attachFragment(FRAGMENT_SHADER_CODE)
+        .inflate(ShaderParameter.attribute(POSITION_ATTRIBUTE))
+        .inflate(ShaderParameter.uniform(MATRIX_UNIFORM))
+        .inflate(ShaderParameter.uniform(TEXTURE_MATRIX_UNIFORM))
+        .inflate(ShaderParameter.uniform(TEXTURE_SAMPLER_UNIFORM))
+        .assemble();
+
     vertexBufferId = uploadBuffer(BufferUtil.storeDataInBuffer(vertexCoordinates));
 
     final int size = videoPieces.size();
@@ -115,11 +105,11 @@ public class SplitShaderProgram extends ShaderProgram {
 
     GLES20.glViewport(0, 0, getViewportWidth(), getViewportHeight());
     //set shader
-    GLES20.glUseProgram(getProgram());
+    shader.activate();
 
-    final int textureHandle = getParameterHandle(INDEX_TEXTURE_SAMPLER);
-    final int textureMatrixHandle = getParameterHandle(INDEX_TEXTURE_MATRIX);
-    final int matrixHandle = getParameterHandle(INDEX_MATRIX);
+    final int textureHandle = shader.getParameterHandle(TEXTURE_SAMPLER_UNIFORM);
+    final int textureMatrixHandle = shader.getParameterHandle(TEXTURE_MATRIX_UNIFORM);
+    final int matrixHandle = shader.getParameterHandle(MATRIX_UNIFORM);
 
     final int areaCount = puzzleLayout.getAreaCount();
     final int pieceCount = videoPieces.size();
@@ -136,6 +126,7 @@ public class SplitShaderProgram extends ShaderProgram {
   @Override
   public void release() {
     super.release();
+    shader.release();
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.release();
     }
@@ -145,7 +136,7 @@ public class SplitShaderProgram extends ShaderProgram {
   private void drawElements() {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vertexBufferId);
     GLES20.glVertexAttribPointer(
-        getParameterHandle(INDEX_POSITION),
+        shader.getParameterHandle(POSITION_ATTRIBUTE),
         2,
         GLES20.GL_FLOAT,
         false,
@@ -153,9 +144,9 @@ public class SplitShaderProgram extends ShaderProgram {
         0);
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
-    GLES20.glEnableVertexAttribArray(getParameterHandle(INDEX_POSITION));
+    GLES20.glEnableVertexAttribArray(shader.getParameterHandle(POSITION_ATTRIBUTE));
     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, vertexCoordinates.length);
-    GLES20.glDisableVertexAttribArray(getParameterHandle(INDEX_POSITION));
+    GLES20.glDisableVertexAttribArray(shader.getParameterHandle(POSITION_ATTRIBUTE));
   }
 
 
