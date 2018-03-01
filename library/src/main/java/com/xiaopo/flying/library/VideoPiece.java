@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library;
 
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
@@ -7,7 +7,7 @@ import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.view.Surface;
 
-import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
+import static com.xiaopo.flying.library.gl.ShaderProgram.MATRIX_SIZE;
 
 /**
  * @author wupanjie

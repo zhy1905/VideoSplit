@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit.gl;
+package com.xiaopo.flying.library.gl;
 
 import android.opengl.GLES20;
 import android.util.Log;
@@ -6,7 +6,7 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import static com.xiaopo.flying.videosplit.gl.ShaderProgram.checkError;
+import static com.xiaopo.flying.library.gl.ShaderProgram.checkError;
 
 /**
  * @author wupanjie

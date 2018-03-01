@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library;
 
 import android.media.AudioFormat;
 import android.media.AudioManager;

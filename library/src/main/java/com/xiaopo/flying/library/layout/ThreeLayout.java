@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit.layout;
+package com.xiaopo.flying.library.layout;
 
 import com.xiaopo.flying.puzzlekit.Line;
 import com.xiaopo.flying.puzzlekit.straight.StraightPuzzleLayout;

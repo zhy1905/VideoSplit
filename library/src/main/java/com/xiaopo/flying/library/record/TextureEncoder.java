@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library.record;
 
 import android.os.Handler;
 import android.os.Looper;

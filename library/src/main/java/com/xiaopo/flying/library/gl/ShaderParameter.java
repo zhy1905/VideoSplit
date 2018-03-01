@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit.gl;
+package com.xiaopo.flying.library.gl;
 
 import android.opengl.GLES20;
 

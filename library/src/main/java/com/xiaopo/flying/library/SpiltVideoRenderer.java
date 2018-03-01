@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
@@ -8,9 +8,11 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
-import com.xiaopo.flying.videosplit.gl.EglCore;
-import com.xiaopo.flying.videosplit.gl.ShaderProgram;
-import com.xiaopo.flying.videosplit.gl.WindowSurface;
+import com.xiaopo.flying.library.gl.EglCore;
+import com.xiaopo.flying.library.gl.ShaderProgram;
+import com.xiaopo.flying.library.gl.WindowSurface;
+import com.xiaopo.flying.library.record.TextureEncoder;
+import com.xiaopo.flying.library.record.TextureRecorder;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,7 +40,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   private WindowSurface inputWindowSurface;
   private TextureEncoder videoEncoder;
 
-  SpiltVideoRenderer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
+  public SpiltVideoRenderer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
     this.setName(THREAD_NAME);
     this.previewSurfaceTexture = texture;
     this.surfaceWidth = width;
@@ -243,7 +245,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
       weakRenderer = new WeakReference<>(rt);
     }
 
-    void sendShutdown() {
+    public void sendShutdown() {
       sendMessage(obtainMessage(RenderHandler.MSG_SHUTDOWN));
     }
 

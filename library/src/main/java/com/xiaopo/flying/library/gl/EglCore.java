@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.xiaopo.flying.videosplit.gl;
+package com.xiaopo.flying.library.gl;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.EGL14;

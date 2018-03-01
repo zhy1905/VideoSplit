@@ -14,8 +14,11 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.xiaopo.flying.library.SpiltVideoRenderer;
+import com.xiaopo.flying.library.SplitShaderProgram;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
-import com.xiaopo.flying.videosplit.layout.ThreeLayout;
+import com.xiaopo.flying.library.layout.ThreeLayout;
+import com.xiaopo.flying.library.mix.AVMixTask;
 import com.yanzhenjie.permission.AndPermission;
 import com.yanzhenjie.permission.PermissionNo;
 import com.yanzhenjie.permission.PermissionYes;

@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
@@ -6,10 +6,10 @@ import android.opengl.Matrix;
 
 import com.xiaopo.flying.puzzlekit.Area;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
-import com.xiaopo.flying.videosplit.gl.BufferUtil;
-import com.xiaopo.flying.videosplit.gl.Shader;
-import com.xiaopo.flying.videosplit.gl.ShaderParameter;
-import com.xiaopo.flying.videosplit.gl.ShaderProgram;
+import com.xiaopo.flying.library.gl.BufferUtil;
+import com.xiaopo.flying.library.gl.Shader;
+import com.xiaopo.flying.library.gl.ShaderParameter;
+import com.xiaopo.flying.library.gl.ShaderProgram;
 
 import java.util.ArrayList;
 
@@ -42,9 +42,19 @@ public class SplitShaderProgram extends ShaderProgram {
       "varying vec2 vTextureCoord;\n" +
       "uniform samplerExternalOES uTextureSampler;\n" +
       "\n" +
+      "float whiteBlack(vec3 vec3Color){\n" +
+      "  float ave = (vec3Color.x + vec3Color.y+vec3Color.z)/3.0;\n" +
+      "  if(ave>0.255)\n" +
+      "    return 1.0;\n" +
+      "  else\n" +
+      "    return 0.0;\n" +
+      "}\n" +
+      "\n" +
       "void main(){\n" +
-      "  gl_FragColor = texture2D(uTextureSampler,vTextureCoord);\n" +
-      "}";
+      "  vec4 textureColor = texture2D(uTextureSampler,vTextureCoord);\n" +
+      "  float finalColor = whiteBlack(textureColor.xyz);\n" +
+      "  gl_FragColor = vec4(finalColor,finalColor,finalColor,1.0);\n" +
+      "}\n";
 
   private static final float vertexCoordinates[] = {
       0, 0, // Fill rectangle

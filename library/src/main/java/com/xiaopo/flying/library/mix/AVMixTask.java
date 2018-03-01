@@ -1,4 +1,4 @@
-package com.xiaopo.flying.videosplit;
+package com.xiaopo.flying.library.mix;
 
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
