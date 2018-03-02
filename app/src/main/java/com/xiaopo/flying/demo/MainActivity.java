@@ -14,6 +14,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.xiaopo.flying.demo.filter.MonochromeFilter;
 import com.xiaopo.flying.videosplit.SpiltVideoRenderer;
 import com.xiaopo.flying.videosplit.SplitShaderProgram;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
@@ -128,9 +129,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     SplitShaderProgram shaderProgram = new SplitShaderProgram();
 
     // TODO
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss4.mp4");
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss2.mp4");
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss3.mp4");
+    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss4.mp4", MonochromeFilter.class);
+    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss2.mp4", MonochromeFilter.class);
+    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss3.mp4", MonochromeFilter.class);
 
     PuzzleLayout threeLayout = new ThreeLayout();
     threeLayout.setOuterBounds(new RectF(0, 0, width, height));

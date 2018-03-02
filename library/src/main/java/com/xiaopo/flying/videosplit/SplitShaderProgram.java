@@ -3,58 +3,30 @@ package com.xiaopo.flying.videosplit;
 import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
+import android.support.annotation.Nullable;
 
 import com.xiaopo.flying.puzzlekit.Area;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
+import com.xiaopo.flying.videosplit.filter.NoFilter;
+import com.xiaopo.flying.videosplit.filter.ShaderFilter;
 import com.xiaopo.flying.videosplit.gl.BufferUtil;
-import com.xiaopo.flying.videosplit.gl.Shader;
-import com.xiaopo.flying.videosplit.gl.ShaderParameter;
 import com.xiaopo.flying.videosplit.gl.ShaderProgram;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+
+import static com.xiaopo.flying.videosplit.filter.ShaderFilter.MATRIX_UNIFORM;
+import static com.xiaopo.flying.videosplit.filter.ShaderFilter.POSITION_ATTRIBUTE;
+import static com.xiaopo.flying.videosplit.filter.ShaderFilter.TEXTURE_MATRIX_UNIFORM;
+import static com.xiaopo.flying.videosplit.filter.ShaderFilter.TEXTURE_SAMPLER_UNIFORM;
 
 /**
  * @author wupanjie
  */
 public class SplitShaderProgram extends ShaderProgram {
+  private static final String TAG = "SplitShaderProgram";
   private static final int COORDS_PER_VERTEX = 2;
   private static final int VERTEX_STRIDE = COORDS_PER_VERTEX * FLOAT_SIZE;
-
-  private static final String POSITION_ATTRIBUTE = "aPosition";
-  private static final String MATRIX_UNIFORM = "uMatrix";
-  private static final String TEXTURE_MATRIX_UNIFORM = "uTextureMatrix";
-  private static final String TEXTURE_SAMPLER_UNIFORM = "uTextureSampler";
-
-  private static final String VERTEX_SHADER_CODE = "uniform mat4 uMatrix;\n" +
-      "uniform mat4 uTextureMatrix;\n" +
-      "attribute vec2 aPosition;\n" +
-      "varying vec2 vTextureCoord;\n" +
-      "\n" +
-      "void main(){\n" +
-      "  vec4 pos = vec4(aPosition,0.0,1.0);\n" +
-      "  gl_Position = uMatrix * pos;\n" +
-      "  vTextureCoord = (uTextureMatrix * pos).xy;\n" +
-      "}";
-
-  private static final String FRAGMENT_SHADER_CODE = "#extension GL_OES_EGL_image_external : require\n" +
-      "\n" +
-      "precision mediump float;\n" +
-      "varying vec2 vTextureCoord;\n" +
-      "uniform samplerExternalOES uTextureSampler;\n" +
-      "\n" +
-      "float whiteBlack(vec3 vec3Color){\n" +
-      "  float ave = (vec3Color.x + vec3Color.y+vec3Color.z)/3.0;\n" +
-      "  if(ave>0.255)\n" +
-      "    return 1.0;\n" +
-      "  else\n" +
-      "    return 0.0;\n" +
-      "}\n" +
-      "\n" +
-      "void main(){\n" +
-      "  vec4 textureColor = texture2D(uTextureSampler,vTextureCoord);\n" +
-      "  float finalColor = whiteBlack(textureColor.xyz);\n" +
-      "  gl_FragColor = vec4(finalColor,finalColor,finalColor,1.0);\n" +
-      "}\n";
 
   private static final float vertexCoordinates[] = {
       0, 0, // Fill rectangle
@@ -68,28 +40,59 @@ public class SplitShaderProgram extends ShaderProgram {
   private float[] viewMatrix = new float[16];
 
   private ArrayList<VideoPiece> videoPieces = new ArrayList<>();
+  private ArrayList<ShaderFilter> shaderFilters = new ArrayList<>();
   private PuzzleLayout puzzleLayout;
+  private HashMap<Class<? extends ShaderFilter>, ShaderFilter> shaderFilterCache = new HashMap<>();
 
-  private Shader shader;
+  //  private Shader shader;
+  private ShaderFilter noFilter = new NoFilter();
 
   public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
     this.puzzleLayout = puzzleLayout;
   }
 
   public void addPiece(final String path) {
+    addPiece(path, noFilter);
+  }
+
+  public void addPiece(final String path, ShaderFilter filter) {
+    Class<? extends ShaderFilter> filterClass = filter.getClass();
+    ShaderFilter cached = shaderFilterCache.get(filterClass);
+    if (cached == null) {
+      shaderFilterCache.put(filterClass, filter);
+      cached = filter;
+    }
     videoPieces.add(new VideoPiece(path));
+    shaderFilters.add(cached);
+  }
+
+  public void addPiece(final String path, Class<? extends ShaderFilter> filterClass) {
+    ShaderFilter cached = shaderFilterCache.get(filterClass);
+    if (cached == null) {
+      try {
+        cached = filterClass.newInstance();
+      } catch (InstantiationException | IllegalAccessException e) {
+        e.printStackTrace();
+      }
+      shaderFilterCache.put(filterClass, cached);
+    }
+    videoPieces.add(new VideoPiece(path));
+    shaderFilters.add(cached);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Nullable
+  public <T extends ShaderFilter> T getShaderFilter(Class<T> filterClass) {
+    return (T) shaderFilterCache.get(filterClass);
   }
 
   @Override
   public void prepare() {
-    shader = new Shader.Builder()
-        .attachVertex(VERTEX_SHADER_CODE)
-        .attachFragment(FRAGMENT_SHADER_CODE)
-        .inflate(ShaderParameter.attribute(POSITION_ATTRIBUTE))
-        .inflate(ShaderParameter.uniform(MATRIX_UNIFORM))
-        .inflate(ShaderParameter.uniform(TEXTURE_MATRIX_UNIFORM))
-        .inflate(ShaderParameter.uniform(TEXTURE_SAMPLER_UNIFORM))
-        .assemble();
+    // prepare filter
+    for (Class<? extends ShaderFilter> key : shaderFilterCache.keySet()) {
+      ShaderFilter filter = shaderFilterCache.get(key);
+      filter.prepare();
+    }
 
     vertexBufferId = uploadBuffer(BufferUtil.storeDataInBuffer(vertexCoordinates));
 
@@ -114,39 +117,44 @@ public class SplitShaderProgram extends ShaderProgram {
     GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
     GLES20.glViewport(0, 0, getViewportWidth(), getViewportHeight());
-    //set shader
-    shader.activate();
-
-    final int textureHandle = shader.getParameterHandle(TEXTURE_SAMPLER_UNIFORM);
-    final int textureMatrixHandle = shader.getParameterHandle(TEXTURE_MATRIX_UNIFORM);
-    final int matrixHandle = shader.getParameterHandle(MATRIX_UNIFORM);
 
     final int areaCount = puzzleLayout.getAreaCount();
     final int pieceCount = videoPieces.size();
     for (int i = 0; i < areaCount; i++) {
       Area area = puzzleLayout.getArea(i);
+
+      ShaderFilter filter = shaderFilters.get(i % pieceCount);
+      filter.activate();
+      final int textureHandle = filter.getParameterHandle(TEXTURE_SAMPLER_UNIFORM);
+      final int textureMatrixHandle = filter.getParameterHandle(TEXTURE_MATRIX_UNIFORM);
+      final int matrixHandle = filter.getParameterHandle(MATRIX_UNIFORM);
+      filter.bindUniform();
+
       VideoPiece piece = videoPieces.get(i % pieceCount);
       piece.setDisplayArea(area.getAreaRect());
       piece.setTexture(textureHandle, textureMatrixHandle);
       piece.setMatrix(matrixHandle, viewMatrix, projectionMatrix);
-      drawElements();
+      drawElements(filter);
     }
   }
 
   @Override
   public void release() {
     super.release();
-    shader.release();
+    for (Class<? extends ShaderFilter> key : shaderFilterCache.keySet()) {
+      shaderFilterCache.get(key).release();
+    }
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.release();
     }
     videoPieces.clear();
+    shaderFilters.clear();
   }
 
-  private void drawElements() {
+  private void drawElements(ShaderFilter filter) {
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vertexBufferId);
     GLES20.glVertexAttribPointer(
-        shader.getParameterHandle(POSITION_ATTRIBUTE),
+        filter.getParameterHandle(POSITION_ATTRIBUTE),
         2,
         GLES20.GL_FLOAT,
         false,
@@ -154,9 +162,9 @@ public class SplitShaderProgram extends ShaderProgram {
         0);
     GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
 
-    GLES20.glEnableVertexAttribArray(shader.getParameterHandle(POSITION_ATTRIBUTE));
+    GLES20.glEnableVertexAttribArray(filter.getParameterHandle(POSITION_ATTRIBUTE));
     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, vertexCoordinates.length);
-    GLES20.glDisableVertexAttribArray(shader.getParameterHandle(POSITION_ATTRIBUTE));
+    GLES20.glDisableVertexAttribArray(filter.getParameterHandle(POSITION_ATTRIBUTE));
   }
 
 

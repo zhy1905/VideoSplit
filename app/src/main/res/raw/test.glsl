@@ -1,20 +1,17 @@
-#extension GL_OES_EGL_image_external : require
-
-precision mediump float;
-varying vec2 vTextureCoord;
-uniform samplerExternalOES uTextureSampler;
-
-float whiteBlack(vec3 vec3Color){
-  float ave = (vec3Color.x + vec3Color.y+vec3Color.z)/3.0;
-  if(ave>0.255)
-    return 1.0;
-  else
-    return 0.0;
-}
-
+precision lowp float;
+varying highp vec2 textureCoordinate;
+ 
+uniform sampler2D uTextureSampler;
+uniform sampler2D uTextureFilter;
+ 
 void main(){
-  vec4 textureColor = texture2D(uTextureSampler,vTextureCoord);
-  float finalColor = whiteBlack(textureColor.xyz);
-  gl_FragColor = vec4(finalColor,finalColor,finalColor,1.0);
-}
-
+     
+  vec3 texel = texture2D(uTextureSampler, textureCoordinate).rgb;
+     
+  texel = vec3(
+               texture2D(uTextureFilter, vec2(texel.r, .16666)).r,
+               texture2D(uTextureFilter, vec2(texel.g, .5)).g,
+               texture2D(uTextureFilter, vec2(texel.b, .83333)).b);
+     
+  gl_FragColor = vec4(texel, 1.0);
+ }

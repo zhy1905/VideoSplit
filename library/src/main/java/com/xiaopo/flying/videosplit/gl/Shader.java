@@ -1,5 +1,6 @@
 package com.xiaopo.flying.videosplit.gl;
 
+import android.graphics.Bitmap;
 import android.opengl.GLES20;
 import android.util.Log;
 
@@ -18,6 +19,7 @@ public class Shader {
   private int fragmentId = -1;
   private ArrayList<ShaderParameter> shaderParameters = new ArrayList<>();
   private HashMap<String, Integer> parameterHandleMap = new HashMap<>();
+  private ArrayList<Integer> textureIds = new ArrayList<>();
 
   private Shader() {
     //no instance
@@ -39,13 +41,12 @@ public class Shader {
     shaderParameters.clear();
   }
 
-
-  public void bindValue(ShaderParameter.Uniform uniform, int value) {
-    GLES20.glUniform1i(uniform.getHandle(), value);
+  public void bindUniformValue(String name, int value) {
+    GLES20.glUniform1i(getParameterHandle(name), value);
   }
 
-  public void bindMatrix(ShaderParameter.Uniform uniform, float[] matrix) {
-    GLES20.glUniformMatrix4fv(uniform.getHandle(), 1, false, matrix, 0);
+  public void bindUniformValue(ShaderParameter.Uniform uniform, float value) {
+    GLES20.glUniform1f(uniform.getHandle(), value);
   }
 
   public int getParameterHandle(String name) {
