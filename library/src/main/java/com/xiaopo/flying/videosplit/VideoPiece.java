@@ -12,12 +12,12 @@ import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
 /**
  * @author wupanjie
  */
-class VideoPiece implements VideoCodec.OnVideoInfoListener {
+class VideoPiece implements VideoDecoder.OnVideoInfoListener {
   private static final String TAG = "VideoPiece";
   private final String path;
   private final float[] positionMatrix = new float[MATRIX_SIZE];
   private final float[] textureMatrix = new float[MATRIX_SIZE];
-  private VideoCodec player;
+  private VideoDecoder player;
   private SurfaceTexture outputTexture;
   private int textureId;
   private RectF displayArea = new RectF();
@@ -33,7 +33,7 @@ class VideoPiece implements VideoCodec.OnVideoInfoListener {
   void configOutput(int textureId) {
     this.textureId = textureId;
     outputTexture = new SurfaceTexture(textureId);
-    player = new VideoCodec(new Surface(outputTexture), path);
+    player = new VideoDecoder(new Surface(outputTexture), path);
     player.setOnVideoInfoListener(this);
   }
 

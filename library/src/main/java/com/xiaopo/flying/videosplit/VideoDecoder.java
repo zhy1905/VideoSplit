@@ -12,7 +12,7 @@ import android.view.Surface;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class VideoCodec {
+public class VideoDecoder {
   private static final String TAG = "TAG";
   private static final long TIMEOUT_US = 10000;
   private VideoThread videoThread;
@@ -22,7 +22,7 @@ public class VideoCodec {
   private Surface surface;
   private OnVideoInfoListener onVideoInfoListener;
 
-  public VideoCodec(Surface surface, String filePath) {
+  public VideoDecoder(Surface surface, String filePath) {
     this.surface = surface;
     this.filePath = filePath;
   }

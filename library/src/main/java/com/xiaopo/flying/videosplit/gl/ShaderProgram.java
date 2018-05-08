@@ -1,8 +1,6 @@
 package com.xiaopo.flying.videosplit.gl;
 
-import android.graphics.Bitmap;
 import android.opengl.GLES20;
-import android.opengl.GLUtils;
 import android.util.Log;
 
 import java.nio.Buffer;

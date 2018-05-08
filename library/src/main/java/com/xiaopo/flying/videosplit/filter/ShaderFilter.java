@@ -1,7 +1,5 @@
 package com.xiaopo.flying.videosplit.filter;
 
-import android.graphics.Bitmap;
-
 /**
  * @author wupanjie
  */

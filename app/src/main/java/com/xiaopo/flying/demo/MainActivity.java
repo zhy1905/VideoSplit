@@ -14,10 +14,28 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.xiaopo.flying.demo.filter.AmaroFilter;
+import com.xiaopo.flying.demo.filter.BrannanFilter;
+import com.xiaopo.flying.demo.filter.EarlyBirdFilter;
+import com.xiaopo.flying.demo.filter.HefeFilter;
+import com.xiaopo.flying.demo.filter.HudsonFilter;
+import com.xiaopo.flying.demo.filter.IF1977Filter;
+import com.xiaopo.flying.demo.filter.InkwellFilter;
+import com.xiaopo.flying.demo.filter.LomofiFilter;
+import com.xiaopo.flying.demo.filter.LordKelvinFilter;
 import com.xiaopo.flying.demo.filter.MonochromeFilter;
+import com.xiaopo.flying.demo.filter.NashvilleFilter;
+import com.xiaopo.flying.demo.filter.RiseFilter;
+import com.xiaopo.flying.demo.filter.SierraFilter;
+import com.xiaopo.flying.demo.filter.SutroFilter;
+import com.xiaopo.flying.demo.filter.ToasterFilter;
+import com.xiaopo.flying.demo.filter.ValenciaFilter;
+import com.xiaopo.flying.demo.filter.WaldenFilter;
+import com.xiaopo.flying.demo.filter.XprollFilter;
 import com.xiaopo.flying.videosplit.SpiltVideoRenderer;
 import com.xiaopo.flying.videosplit.SplitShaderProgram;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
+import com.xiaopo.flying.videosplit.filter.NoFilter;
 import com.xiaopo.flying.videosplit.mix.AVMixingTask;
 import com.xiaopo.flying.demo.layout.ThreeLayout;
 import com.yanzhenjie.permission.AndPermission;
@@ -29,7 +47,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity implements TextureView.SurfaceTextureListener, SpiltVideoRenderer.OnRendererReadyListener, AVMixingTask.AVMixListener {
+public class MainActivity extends AppCompatActivity implements
+    TextureView.SurfaceTextureListener,
+    SpiltVideoRenderer.OnRendererReadyListener,
+    AVMixingTask.AVMixListener {
   private static final String TAG = "MainActivity";
   private TextureView textureView;
   private SurfaceTexture surfaceTexture;
@@ -38,9 +59,10 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
   private Button btnStop;
   private Button btnCombine;
 
-  private String videoPath = "/storage/emulated/0/Pictures/VideoSplit/test.mp4";
+  private String taeyeonVideoPathPrefix = "/storage/emulated/0/QuickSave_By_ProtonApps/videos/";
+  private String videoPath = "/storage/emulated/0/Movies/VideoSplit/record.mp4";
   private String aacAudioPath = "/storage/emulated/0/Pictures/VideoSplit/hhhhhh.aac";
-  private String mp3AudioPath = "/storage/emulated/0/Pictures/VideoSplit/hahah.mp3";
+  private String mp3AudioPath = "/storage/emulated/0/netease/cloudmusic/Music/LastSurprise.mp3";
 
   private ExecutorService mixExecutor = Executors.newSingleThreadExecutor();
   private Handler mainHandler;
@@ -116,9 +138,9 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     btnCombine.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
-        File file = FileUtil.getNewFile(MainActivity.this, "VideoSplit", "combineAAC.mp4");
+        File file = FileUtil.getNewFile(MainActivity.this, "VideoSplit", "combineMP4.mp4");
         Log.d(TAG, "combine: file is " + file.getAbsolutePath());
-        mixExecutor.execute(new AVMixingTask(file, videoPath, aacAudioPath, MainActivity.this));
+        mixExecutor.execute(new AVMixingTask(file, videoPath, mp3AudioPath, MainActivity.this));
       }
     });
   }
@@ -128,10 +150,14 @@ public class MainActivity extends AppCompatActivity implements TextureView.Surfa
     this.surfaceTexture = surface;
     SplitShaderProgram shaderProgram = new SplitShaderProgram();
 
+    AmaroFilter amaroFilter = new AmaroFilter(this);
+    XprollFilter xprollFilter = new XprollFilter(this);
+    IF1977Filter if1977Filter = new IF1977Filter(this);
+
     // TODO
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss4.mp4", MonochromeFilter.class);
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss2.mp4", MonochromeFilter.class);
-    shaderProgram.addPiece("/storage/emulated/0/QuickSaveVideo/taeyeon_ss3.mp4", MonochromeFilter.class);
+    shaderProgram.addPiece(taeyeonVideoPathPrefix + "taeyeon1.mp4", new WaldenFilter(this));
+    shaderProgram.addPiece(taeyeonVideoPathPrefix + "taeyeon2.mp4", new SutroFilter(this));
+    shaderProgram.addPiece(taeyeonVideoPathPrefix + "taeyeon3.mp4", new ValenciaFilter(this));
 
     PuzzleLayout threeLayout = new ThreeLayout();
     threeLayout.setOuterBounds(new RectF(0, 0, width, height));
