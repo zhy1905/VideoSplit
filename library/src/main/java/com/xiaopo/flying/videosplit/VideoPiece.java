@@ -5,6 +5,7 @@ import android.graphics.SurfaceTexture;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
+import android.util.Log;
 import android.view.Surface;
 
 import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
@@ -12,7 +13,7 @@ import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
 /**
  * @author wupanjie
  */
-class VideoPiece implements VideoDecoder.OnVideoInfoListener {
+class VideoPiece {
   private static final String TAG = "VideoPiece";
   private final String path;
   private final float[] positionMatrix = new float[MATRIX_SIZE];
@@ -25,6 +26,7 @@ class VideoPiece implements VideoDecoder.OnVideoInfoListener {
 
   private int videoWidth;
   private int videoHeight;
+  private long videoDuration;
 
   VideoPiece(String path) {
     this.path = path;
@@ -34,11 +36,23 @@ class VideoPiece implements VideoDecoder.OnVideoInfoListener {
     this.textureId = textureId;
     outputTexture = new SurfaceTexture(textureId);
     player = new VideoDecoder(new Surface(outputTexture), path);
-    player.setOnVideoInfoListener(this);
+    videoWidth = player.getVideoWidth();
+    videoHeight = player.getVideoHeight();
+    videoDuration = player.getVideoDuration();
+
+    Log.d(TAG, "configOutput: video path is " + path + ",video duration is " + videoDuration);
+  }
+
+  public long getPresentationTimeUs() {
+    return player.getPresentationTimeUs();
   }
 
   SurfaceTexture getOutputTexture() {
     return outputTexture;
+  }
+
+  public long getVideoDuration() {
+    return videoDuration;
   }
 
   void release() {
@@ -118,9 +132,7 @@ class VideoPiece implements VideoDecoder.OnVideoInfoListener {
     GLES20.glUniformMatrix4fv(matrixHandle, 1, false, positionMatrix, 0);
   }
 
-  @Override
-  public void onVideoInfoParsed(int width, int height, float time) {
-    this.videoWidth = width;
-    this.videoHeight = height;
+  public boolean isFinished() {
+    return player.isFinished();
   }
 }

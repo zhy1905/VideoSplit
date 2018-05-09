@@ -22,9 +22,48 @@ public class VideoDecoder {
   private Surface surface;
   private OnVideoInfoListener onVideoInfoListener;
 
+  private int videoWidth;
+  private int videoHeight;
+  private long videoDuration;
+
+  private long presentationTime;
+  private boolean isMediaEOS;
+
   public VideoDecoder(Surface surface, String filePath) {
     this.surface = surface;
     this.filePath = filePath;
+
+    parseVideoInfo();
+  }
+
+  private void parseVideoInfo() {
+    MediaExtractor videoExtractor = new MediaExtractor();
+    try {
+      videoExtractor.setDataSource(filePath);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    int videoTrackIndex;
+    //获取视频所在轨道
+    videoTrackIndex = getMediaTrackIndex(videoExtractor, "video/");
+    if (videoTrackIndex >= 0) {
+      MediaFormat mediaFormat = videoExtractor.getTrackFormat(videoTrackIndex);
+      videoWidth = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
+      videoHeight = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
+      videoDuration = mediaFormat.getLong(MediaFormat.KEY_DURATION) / 1000;
+    }
+  }
+
+  public int getVideoWidth() {
+    return videoWidth;
+  }
+
+  public int getVideoHeight() {
+    return videoHeight;
+  }
+
+  public long getVideoDuration() {
+    return videoDuration;
   }
 
   public void setOnVideoInfoListener(OnVideoInfoListener onVideoInfoListener) {
@@ -54,7 +93,9 @@ public class VideoDecoder {
   public void destroy() {
     stop();
 //    if (audioThread != null) audioThread.interrupt();
-    if (videoThread != null) videoThread.interrupt();
+    if (videoThread != null) {
+      videoThread.interrupt();
+    }
   }
 
   /*将缓冲区传递至解码器
@@ -104,7 +145,18 @@ public class VideoDecoder {
     }
   }
 
+  public long getPresentationTimeUs(){
+    return presentationTime;
+  }
+
+  public boolean isFinished() {
+    return isMediaEOS;
+  }
+
   private class VideoThread extends Thread {
+
+    MediaCodec.BufferInfo videoBufferInfo;
+
     @Override
     public void run() {
       MediaExtractor videoExtractor = new MediaExtractor();
@@ -140,9 +192,8 @@ public class VideoDecoder {
       }
       videoCodec.start();
 
-      MediaCodec.BufferInfo videoBufferInfo = new MediaCodec.BufferInfo();
+      videoBufferInfo = new MediaCodec.BufferInfo();
       ByteBuffer[] inputBuffers = videoCodec.getInputBuffers();
-//            ByteBuffer[] outputBuffers = videoCodec.getOutputBuffers();
       boolean isVideoEOS = false;
 
       long startMs = System.currentTimeMillis();
@@ -153,6 +204,7 @@ public class VideoDecoder {
         //将资源传递到解码器
         if (!isVideoEOS) {
           isVideoEOS = putBufferToCoder(videoExtractor, videoCodec, inputBuffers);
+          isMediaEOS = isVideoEOS;
         }
         int outputBufferIndex = videoCodec.dequeueOutputBuffer(videoBufferInfo, TIMEOUT_US);
         switch (outputBufferIndex) {
@@ -163,7 +215,6 @@ public class VideoDecoder {
             Log.v(TAG, "超时 : " + filePath);
             break;
           case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
-            //outputBuffers = videoCodec.getOutputBuffers();
             Log.v(TAG, "output buffers changed");
             break;
           default:
@@ -171,8 +222,9 @@ public class VideoDecoder {
             //ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];
             //延时操作
             //如果缓冲区里的可展示时间>当前视频播放的进度，就休眠一下
-            sleepRender(videoBufferInfo, startMs);
+//            sleepRender(videoBufferInfo, startMs);
             //渲染
+            presentationTime = videoBufferInfo.presentationTimeUs;
             videoCodec.releaseOutputBuffer(outputBufferIndex, true);
             break;
         }

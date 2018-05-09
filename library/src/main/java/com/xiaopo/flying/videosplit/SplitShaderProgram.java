@@ -13,6 +13,8 @@ import com.xiaopo.flying.videosplit.gl.BufferUtil;
 import com.xiaopo.flying.videosplit.gl.ShaderProgram;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 
 import static com.xiaopo.flying.videosplit.filter.ShaderFilter.MATRIX_UNIFORM;
@@ -29,7 +31,7 @@ public class SplitShaderProgram extends ShaderProgram {
   private static final int VERTEX_STRIDE = COORDS_PER_VERTEX * FLOAT_SIZE;
 
   private static final float vertexCoordinates[] = {
-      0, 0, // Fill rectangle
+      0, 0,
       1, 0,
       0, 1,
       1, 1,
@@ -46,6 +48,8 @@ public class SplitShaderProgram extends ShaderProgram {
 
   //  private Shader shader;
   private ShaderFilter noFilter = new NoFilter();
+
+  private VideoPiece shortestDurationPiece;
 
   public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
     this.puzzleLayout = puzzleLayout;
@@ -103,12 +107,28 @@ public class SplitShaderProgram extends ShaderProgram {
       videoPieces.get(i).configOutput(textureIds[i]);
     }
 
+    shortestDurationPiece = Collections.min(videoPieces, new Comparator<VideoPiece>() {
+      @Override
+      public int compare(VideoPiece o1, VideoPiece o2) {
+        return Long.compare(o1.getVideoDuration(),o2.getVideoDuration());
+      }
+    });
+
     Matrix.setIdentityM(projectionMatrix, 0);
     Matrix.orthoM(projectionMatrix, 0, 0, getViewportWidth(), 0, getViewportHeight(), -1, 1);
 
     Matrix.setIdentityM(viewMatrix, 0);
     Matrix.translateM(viewMatrix, 0, 0, getViewportHeight(), 0);
     Matrix.scaleM(viewMatrix, 0, 1, -1, 1);
+  }
+
+  public boolean isFinished() {
+    for (VideoPiece videoPiece : videoPieces) {
+      if (videoPiece.isFinished()){
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override
@@ -167,22 +187,29 @@ public class SplitShaderProgram extends ShaderProgram {
     GLES20.glDisableVertexAttribArray(filter.getParameterHandle(POSITION_ATTRIBUTE));
   }
 
+  public long getPresentationTimeUs() {
+    return videoPieces.get(0).getPresentationTimeUs();
+  }
 
-  public void updatePreviewTexture() {
+  void updatePreviewTexture() {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.getOutputTexture().updateTexImage();
     }
   }
 
-  public void setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
+  void setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.getOutputTexture().setOnFrameAvailableListener(onFrameAvailableListener);
     }
   }
 
-  public void play() {
+  void play() {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.play();
     }
+  }
+
+  public long getMinVideoPieceDuration() {
+    return shortestDurationPiece.getVideoDuration();
   }
 }
