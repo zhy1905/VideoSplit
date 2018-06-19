@@ -2,24 +2,33 @@ package com.xiaopo.flying.videosplit;
 
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.media.MediaCodec;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.util.Log;
 import android.view.Surface;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
 import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
 
 /**
  * @author wupanjie
  */
-class VideoPiece {
+class VideoPiece extends Thread {
   private static final String TAG = "VideoPiece";
+  private static final long TIMEOUT_US = 10000;
+
   private final String path;
   private final float[] positionMatrix = new float[MATRIX_SIZE];
   private final float[] textureMatrix = new float[MATRIX_SIZE];
-  private VideoDecoder player;
+
   private SurfaceTexture outputTexture;
+  private Surface surface;
   private int textureId;
   private RectF displayArea = new RectF();
   private RectF textureArea = new RectF(0, 0, 1, 1);
@@ -28,23 +37,28 @@ class VideoPiece {
   private int videoHeight;
   private long videoDuration;
 
+  private long presentationTime;
+  private boolean isMediaEOS;
+
   VideoPiece(String path) {
     this.path = path;
+  }
+
+  public String getPath() {
+    return path;
   }
 
   void configOutput(int textureId) {
     this.textureId = textureId;
     outputTexture = new SurfaceTexture(textureId);
-    player = new VideoDecoder(new Surface(outputTexture), path);
-    videoWidth = player.getVideoWidth();
-    videoHeight = player.getVideoHeight();
-    videoDuration = player.getVideoDuration();
+    surface = new Surface(outputTexture);
+    parseVideoInfo();
 
     Log.d(TAG, "configOutput: video path is " + path + ",video duration is " + videoDuration);
   }
 
   public long getPresentationTimeUs() {
-    return player.getPresentationTimeUs();
+    return presentationTime;
   }
 
   SurfaceTexture getOutputTexture() {
@@ -57,14 +71,12 @@ class VideoPiece {
 
   void release() {
     outputTexture.release();
-    player.destroy();
-
     outputTexture = null;
-    player = null;
+    interrupt();
   }
 
   void play() {
-    player.play();
+    start();
   }
 
   void setDisplayArea(RectF area) {
@@ -133,6 +145,139 @@ class VideoPiece {
   }
 
   public boolean isFinished() {
-    return player.isFinished();
+    return isMediaEOS;
+  }
+
+  @Override
+  public void run() {
+    MediaExtractor videoExtractor = new MediaExtractor();
+    MediaCodec videoCodec = null;
+    try {
+      videoExtractor.setDataSource(path);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    int videoTrackIndex;
+    //获取视频所在轨道
+    videoTrackIndex = getMediaTrackIndex(videoExtractor);
+    if (videoTrackIndex >= 0) {
+      MediaFormat mediaFormat = videoExtractor.getTrackFormat(videoTrackIndex);
+      videoExtractor.selectTrack(videoTrackIndex);
+      try {
+        videoCodec = MediaCodec.createDecoderByType(mediaFormat.getString(MediaFormat.KEY_MIME));
+        videoCodec.configure(mediaFormat, surface, null, 0);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+
+    if (videoCodec == null) {
+      Log.v(TAG, "MediaCodec null");
+      return;
+    }
+    videoCodec.start();
+
+    MediaCodec.BufferInfo videoBufferInfo = new MediaCodec.BufferInfo();
+    ByteBuffer[] inputBuffers = videoCodec.getInputBuffers();
+    boolean isVideoEOS = false;
+
+    long startMs = System.currentTimeMillis();
+    while (!Thread.interrupted()) {
+      //将资源传递到解码器
+      if (!isVideoEOS) {
+        isVideoEOS = putBufferToCoder(videoExtractor, videoCodec, inputBuffers);
+        isMediaEOS = isVideoEOS;
+      }
+      int outputBufferIndex = videoCodec.dequeueOutputBuffer(videoBufferInfo, TIMEOUT_US);
+      switch (outputBufferIndex) {
+        case MediaCodec.INFO_OUTPUT_FORMAT_CHANGED:
+          Log.v(TAG, "format changed");
+          break;
+        case MediaCodec.INFO_TRY_AGAIN_LATER:
+          Log.v(TAG, "超时 : " + path);
+          break;
+        case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
+          Log.v(TAG, "output buffers changed");
+          break;
+        default:
+          //直接渲染到Surface时使用不到outputBuffer
+          //ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];
+          //延时操作
+          //如果缓冲区里的可展示时间>当前视频播放的进度，就休眠一下
+//          sleepRender(videoBufferInfo, startMs);
+          //渲染
+          presentationTime = videoBufferInfo.presentationTimeUs;
+          videoCodec.releaseOutputBuffer(outputBufferIndex, true);
+          break;
+      }
+
+      if ((videoBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+        Log.v(TAG, "buffer stream end");
+        break;
+      }
+    }//end while
+    videoCodec.stop();
+    videoCodec.release();
+    videoExtractor.release();
+  }
+
+  private int getMediaTrackIndex(MediaExtractor videoExtractor) {
+    int trackIndex = -1;
+    for (int i = 0; i < videoExtractor.getTrackCount(); i++) {
+      MediaFormat mediaFormat = videoExtractor.getTrackFormat(i);
+      String mime = mediaFormat.getString(MediaFormat.KEY_MIME);
+      if (mime.startsWith("video/")) {
+        trackIndex = i;
+        break;
+      }
+    }
+    return trackIndex;
+  }
+
+  private void sleepRender(MediaCodec.BufferInfo audioBufferInfo, long startMs) {
+    while (audioBufferInfo.presentationTimeUs / 1000 > System.currentTimeMillis() - startMs) {
+      try {
+        Thread.sleep(10);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+        break;
+      }
+    }
+  }
+
+  private boolean putBufferToCoder(MediaExtractor extractor, MediaCodec decoder, ByteBuffer[] inputBuffers) {
+    boolean isMediaEOS = false;
+    int inputBufferIndex = decoder.dequeueInputBuffer(TIMEOUT_US);
+    if (inputBufferIndex >= 0) {
+      ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
+      int sampleSize = extractor.readSampleData(inputBuffer, 0);
+      if (sampleSize < 0) {
+        decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+        isMediaEOS = true;
+        Log.v(TAG, "media eos");
+      } else {
+        decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.getSampleTime(), 0);
+        extractor.advance();
+      }
+    }
+    return isMediaEOS;
+  }
+
+  private void parseVideoInfo() {
+    MediaExtractor videoExtractor = new MediaExtractor();
+    try {
+      videoExtractor.setDataSource(path);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    int videoTrackIndex;
+    //获取视频所在轨道
+    videoTrackIndex = getMediaTrackIndex(videoExtractor);
+    if (videoTrackIndex >= 0) {
+      MediaFormat mediaFormat = videoExtractor.getTrackFormat(videoTrackIndex);
+      videoWidth = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
+      videoHeight = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
+      videoDuration = mediaFormat.getLong(MediaFormat.KEY_DURATION) / 1000;
+    }
   }
 }

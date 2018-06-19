@@ -76,8 +76,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     shaderProgram.prepare();
     shaderProgram.setOnFrameAvailableListener(this);
 
-
-    outputVideoDuration = shaderProgram.getMinVideoPieceDuration();
+    outputVideoDuration = shaderProgram.getLongestVideoPieceDuration();
     Log.d(TAG, "initGLComponents: output video duration is " + outputVideoDuration);
 
     onSetupComplete();
@@ -85,7 +84,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
 
 
   private void deinitGL() {
-    stopRecording();
+    stopMixing();
     shaderProgram.release();
     eglCore.release();
   }
@@ -137,10 +136,10 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     handler.sendEmptyMessage(RenderHandler.MSG_RENDER);
   }
 
-  public void stopRecording() {
+  public void stopMixing() {
     synchronized (lock) {
       if (videoEncoder != null) {
-        Log.d(TAG, "stopping recorder, mVideoEncoder=" + videoEncoder);
+        Log.d(TAG, "stopping mixing, mVideoEncoder=" + videoEncoder);
         videoEncoder.stopRecording();
         videoEncoder = null;
       }
@@ -163,8 +162,6 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
   private boolean started = true;
 
   private void render() {
-    boolean swapResult;
-
     synchronized (lock) {
 
       shaderProgram.updatePreviewTexture();
@@ -187,7 +184,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
             Log.d(TAG, "render: usage time is " + usageTime);
             if (shaderProgram.isFinished() || usageTime >= outputVideoDuration * 1000) {
               Log.d(TAG, "render: stop");
-              stopRecording();
+              stopMixing();
               return;
             }
 
@@ -200,11 +197,6 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
 
       }
 
-//      if (!swapResult) {
-//        // This can happen if the Activity stops without waiting for us to halt.
-//        Log.e(TAG, "swapBuffers failed, killing renderer thread");
-//        shutdown();
-//      }
     }
   }
 

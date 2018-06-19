@@ -4,6 +4,7 @@ import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.support.annotation.Nullable;
+import android.util.Log;
 
 import com.xiaopo.flying.puzzlekit.Area;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
@@ -46,10 +47,10 @@ public class SplitShaderProgram extends ShaderProgram {
   private PuzzleLayout puzzleLayout;
   private HashMap<Class<? extends ShaderFilter>, ShaderFilter> shaderFilterCache = new HashMap<>();
 
-  //  private Shader shader;
   private ShaderFilter noFilter = new NoFilter();
 
   private VideoPiece shortestDurationPiece;
+  private VideoPiece longestDurationPiece;
 
   public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
     this.puzzleLayout = puzzleLayout;
@@ -110,7 +111,14 @@ public class SplitShaderProgram extends ShaderProgram {
     shortestDurationPiece = Collections.min(videoPieces, new Comparator<VideoPiece>() {
       @Override
       public int compare(VideoPiece o1, VideoPiece o2) {
-        return Long.compare(o1.getVideoDuration(),o2.getVideoDuration());
+        return Long.compare(o1.getVideoDuration(), o2.getVideoDuration());
+      }
+    });
+
+    longestDurationPiece = Collections.max(videoPieces, new Comparator<VideoPiece>() {
+      @Override
+      public int compare(VideoPiece o1, VideoPiece o2) {
+        return Long.compare(o1.getVideoDuration(), o2.getVideoDuration());
       }
     });
 
@@ -124,11 +132,11 @@ public class SplitShaderProgram extends ShaderProgram {
 
   public boolean isFinished() {
     for (VideoPiece videoPiece : videoPieces) {
-      if (videoPiece.isFinished()){
-        return true;
+      if (!videoPiece.isFinished()) {
+        return false;
       }
     }
-    return false;
+    return true;
   }
 
   @Override
@@ -188,7 +196,7 @@ public class SplitShaderProgram extends ShaderProgram {
   }
 
   public long getPresentationTimeUs() {
-    return videoPieces.get(0).getPresentationTimeUs();
+    return longestDurationPiece.getPresentationTimeUs();
   }
 
   void updatePreviewTexture() {
@@ -197,7 +205,7 @@ public class SplitShaderProgram extends ShaderProgram {
     }
   }
 
-  void setOnFrameAvailableListener(SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
+  void setOnFrameAvailableListener(final SurfaceTexture.OnFrameAvailableListener onFrameAvailableListener) {
     for (VideoPiece videoPiece : videoPieces) {
       videoPiece.getOutputTexture().setOnFrameAvailableListener(onFrameAvailableListener);
     }
@@ -209,7 +217,11 @@ public class SplitShaderProgram extends ShaderProgram {
     }
   }
 
-  public long getMinVideoPieceDuration() {
+  public long getShortestVideoPieceDuration() {
     return shortestDurationPiece.getVideoDuration();
+  }
+
+  public long getLongestVideoPieceDuration() {
+    return longestDurationPiece.getVideoDuration();
   }
 }

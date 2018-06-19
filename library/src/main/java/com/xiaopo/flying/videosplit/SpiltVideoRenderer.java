@@ -17,6 +17,7 @@ import com.xiaopo.flying.videosplit.record.TextureRecorder;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.util.concurrent.CountDownLatch;
 
 public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrameAvailableListener {
   private static final String TAG = SpiltVideoRenderer.class.getSimpleName();
@@ -83,8 +84,9 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   public synchronized void start() {
     initialize();
 
-    if (onRendererReadyListener == null)
+    if (onRendererReadyListener == null) {
       throw new RuntimeException("OnRenderReadyListener is not set! Set listener prior to calling start()");
+    }
 
     super.start();
   }
