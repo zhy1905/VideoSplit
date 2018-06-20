@@ -4,6 +4,7 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.util.Log;
 
 import com.xiaopo.flying.videosplit.utils.MediaCodecBufferCompatWrapper;
 import com.xiaopo.flying.videosplit.utils.MediaUtil;
@@ -13,14 +14,17 @@ import java.nio.ByteBuffer;
 
 /**
  * Refer: https://github.com/ypresto/android-transcoder
- *
+ * <p>
  * little change
- *
+ * <p>
  * Transcoding mp3 format to aac format
  *
  * @author wupanjie
  */
 public class AudioTranscoder {
+  private static final String TAG = "AudioTranscoder";
+  private static final boolean VERBOSE = true;
+
   private static final int DRAIN_STATE_NONE = 0;
   private static final int DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY = 1;
   private static final int DRAIN_STATE_CONSUMED = 2;
@@ -44,6 +48,8 @@ public class AudioTranscoder {
   private MediaCodecBufferCompatWrapper decoderBuffers;
   private MediaCodecBufferCompatWrapper encoderBuffers;
 
+  private boolean isTranscodeEnd;
+
   private boolean isExtractorEOS;
   private boolean isDecoderEOS;
   private boolean isEncoderEOS;
@@ -53,6 +59,7 @@ public class AudioTranscoder {
   private AudioChannel audioChannel;
   private long writtenPresentationTimeUs;
   private int writeToMuxerTrackIndex = -1;
+  private int frameCount;
 
   public AudioTranscoder(MediaMuxer muxer, MediaExtractor extractor, int inputAudioTrackIndex) {
     this.muxer = muxer;
@@ -94,33 +101,46 @@ public class AudioTranscoder {
 
   public boolean mix(final long maxDuration) {
     if (writtenPresentationTimeUs >= maxDuration) {
+      isTranscodeEnd = true;
       return false;
     }
     boolean busy = false;
 
     int status;
-    while (drainEncoder(0) != DRAIN_STATE_NONE) busy = true;
+    while (drainEncoder(0) != DRAIN_STATE_NONE) {
+      busy = true;
+    }
     do {
       status = drainDecoder(0);
-      if (status != DRAIN_STATE_NONE) busy = true;
+      if (status != DRAIN_STATE_NONE) {
+        busy = true;
+      }
       // NOTE: not repeating to keep from deadlock when encoder is full.
     } while (status == DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY);
 
-    while (audioChannel.feedEncoder(0)) busy = true;
-    while (drainExtractor(0) != DRAIN_STATE_NONE) busy = true;
+    while (audioChannel.feedEncoder(0)) {
+      busy = true;
+    }
+    while (drainExtractor(0) != DRAIN_STATE_NONE) {
+      busy = true;
+    }
 
     return busy;
   }
 
   private int drainExtractor(long timeoutUs) {
-    if (isExtractorEOS) return DRAIN_STATE_NONE;
+    if (isExtractorEOS) {
+      return DRAIN_STATE_NONE;
+    }
     int trackIndex = extractor.getSampleTrackIndex();
     if (trackIndex >= 0 && trackIndex != inputAudioTrackIndex) {
       return DRAIN_STATE_NONE;
     }
 
     final int result = decoder.dequeueInputBuffer(timeoutUs);
-    if (result < 0) return DRAIN_STATE_NONE;
+    if (result < 0) {
+      return DRAIN_STATE_NONE;
+    }
     if (trackIndex < 0) {
       isExtractorEOS = true;
       decoder.queueInputBuffer(result, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
@@ -135,7 +155,9 @@ public class AudioTranscoder {
   }
 
   private int drainDecoder(long timeoutUs) {
-    if (isDecoderEOS) return DRAIN_STATE_NONE;
+    if (isDecoderEOS) {
+      return DRAIN_STATE_NONE;
+    }
 
     int result = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs);
     switch (result) {
@@ -158,7 +180,9 @@ public class AudioTranscoder {
   }
 
   private int drainEncoder(long timeoutUs) {
-    if (isEncoderEOS) return DRAIN_STATE_NONE;
+    if (isEncoderEOS) {
+      return DRAIN_STATE_NONE;
+    }
 
     int result = encoder.dequeueOutputBuffer(bufferInfo, timeoutUs);
     switch (result) {
@@ -185,6 +209,7 @@ public class AudioTranscoder {
 
     if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
       isEncoderEOS = true;
+      isTranscodeEnd = true;
       bufferInfo.set(0, 0, 0, bufferInfo.flags);
     }
     if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
@@ -192,25 +217,40 @@ public class AudioTranscoder {
       encoder.releaseOutputBuffer(result, false);
       return DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY;
     }
-//    mMuxer.writeSampleData(SAMPLE_TYPE, encoderBuffers.getOutputBuffer(result), bufferInfo);
     ByteBuffer byteBuf = encoderBuffers.getOutputBuffer(result);
     muxer.writeSampleData(writeToMuxerTrackIndex, byteBuf, bufferInfo);
+    frameCount++;
 
     writtenPresentationTimeUs = bufferInfo.presentationTimeUs;
     encoder.releaseOutputBuffer(result, false);
+
+    if (VERBOSE) {
+      Log.d(TAG, "Frame (" + frameCount + ") " +
+          " AudioPresentationTimeUs:" + bufferInfo.presentationTimeUs +
+          " Flags:" + bufferInfo.flags +
+          " Size(KB) " + bufferInfo.size / 1024);
+    }
     return DRAIN_STATE_CONSUMED;
   }
 
   public void release() {
     if (decoder != null) {
-      if (decoderStarted) decoder.stop();
+      if (decoderStarted) {
+        decoder.stop();
+      }
       decoder.release();
       decoder = null;
     }
     if (encoder != null) {
-      if (encoderStarted) encoder.stop();
+      if (encoderStarted) {
+        encoder.stop();
+      }
       encoder.release();
       encoder = null;
     }
+  }
+
+  public boolean isFinished() {
+    return isTranscodeEnd;
   }
 }

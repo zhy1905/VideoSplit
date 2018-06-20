@@ -19,7 +19,7 @@ import com.xiaopo.flying.demo.layout.ThreeLayout;
 import com.xiaopo.flying.demo.layout.TwoLayout;
 import com.xiaopo.flying.demo.utils.FileUtil;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
-import com.xiaopo.flying.videosplit.SpiltVideoRenderer;
+import com.xiaopo.flying.videosplit.SpiltVideoPlayer;
 import com.xiaopo.flying.videosplit.SplitShaderProgram;
 import com.xiaopo.flying.videosplit.filter.NoFilter;
 import com.xiaopo.flying.videosplit.mix.AVMixingTask;
@@ -35,12 +35,12 @@ import java.util.concurrent.Executors;
 
 public class SplitVideoActivity extends AppCompatActivity implements
     TextureView.SurfaceTextureListener,
-    SpiltVideoRenderer.OnRendererReadyListener,
+    SpiltVideoPlayer.OnRendererReadyListener,
     AVMixingTask.AVMixListener {
   private static final String TAG = "SplitVideoActivity";
   private TextureView textureView;
   private SurfaceTexture surfaceTexture;
-  private SpiltVideoRenderer renderer;
+  private SpiltVideoPlayer renderer;
   private Button btnRecord;
   private Button btnStop;
   private Button btnCombine;
@@ -156,7 +156,7 @@ public class SplitVideoActivity extends AppCompatActivity implements
     puzzleLayout.layout();
     shaderProgram.setPuzzleLayout(puzzleLayout);
 
-    renderer = new SpiltVideoRenderer(surfaceTexture, width, height, shaderProgram);
+    renderer = new SpiltVideoPlayer(surfaceTexture, width, height, shaderProgram);
     renderer.setViewport(width, height);
     renderer.setOnRendererReadyListener(this);
     renderer.start();

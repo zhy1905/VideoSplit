@@ -17,7 +17,7 @@ import java.lang.ref.WeakReference;
 
 public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameAvailableListener {
   private static final String TAG = SpiltVideoCreator.class.getSimpleName();
-  private static final String THREAD_NAME = "SpiltVideoRenderer";
+  private static final String THREAD_NAME = "SpiltVideoPlayer";
   private static final int BIT_RATE = 4000000;
 
   private final Object lock = new Object();
@@ -174,23 +174,21 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
         inputWindowSurface.setPresentationTime(shaderProgram.getPresentationTimeUs() * 1000);
         inputWindowSurface.swapBuffers();
 
-        if (shaderProgram.getPresentationTimeUs() > 0) {
-          if (started) {
-            Log.d(TAG, "render: start time is " + startTime);
-            startTime = shaderProgram.getPresentationTimeUs();
-            started = false;
-          } else {
-            final long usageTime = shaderProgram.getPresentationTimeUs() - startTime;
-            Log.d(TAG, "render: usage time is " + usageTime);
-            if (shaderProgram.isFinished() || usageTime >= outputVideoDuration * 1000) {
-              Log.d(TAG, "render: stop");
-              stopMixing();
-              return;
-            }
+        if (started) {
+          Log.d(TAG, "render: start time is " + startTime);
+          startTime = shaderProgram.getPresentationTimeUs();
+          started = false;
+        } else {
+          final long usageTime = shaderProgram.getPresentationTimeUs() - startTime;
+          Log.d(TAG, "render: usage time is " + usageTime);
+          if (shaderProgram.isFinished() || usageTime >= outputVideoDuration * 1000) {
+            Log.d(TAG, "render: stop");
+            stopMixing();
+            return;
+          }
 
-            if (!shaderProgram.isFinished() || onProcessProgressListener != null) {
-              onProcessProgressListener.onProcessProgressChanged((int) ((float) usageTime / (outputVideoDuration * 1000) * 100));
-            }
+          if (!shaderProgram.isFinished() || onProcessProgressListener != null) {
+            onProcessProgressListener.onProcessProgressChanged((int) ((float) usageTime / (outputVideoDuration * 1000) * 100));
           }
         }
 

@@ -96,11 +96,11 @@ class AudioMixer {
     }
 
     if (transcoder != null){
-      if (!transcoder.mix(maxDuration)){
+      if (transcoder.isFinished()){
         mixEnded = true;
         return false;
       }
-
+      transcoder.mix(maxDuration);
       return true;
     }
 
@@ -122,7 +122,7 @@ class AudioMixer {
 
     if (VERBOSE) {
       Log.d(TAG, "Frame (" + frameCount + ") " +
-          " VideoPresentationTimeUs:" + bufferInfo.presentationTimeUs +
+          " AudioPresentationTimeUs:" + bufferInfo.presentationTimeUs +
           " Flags:" + bufferInfo.flags +
           " Size(KB) " + bufferInfo.size / 1024);
     }

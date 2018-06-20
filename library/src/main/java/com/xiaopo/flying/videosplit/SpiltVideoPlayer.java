@@ -17,11 +17,13 @@ import com.xiaopo.flying.videosplit.record.TextureRecorder;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.concurrent.CountDownLatch;
 
-public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrameAvailableListener {
-  private static final String TAG = SpiltVideoRenderer.class.getSimpleName();
-  private static final String THREAD_NAME = "SpiltVideoRenderer";
+/**
+ * @author wupanjie
+ */
+public class SpiltVideoPlayer extends Thread implements SurfaceTexture.OnFrameAvailableListener {
+  private static final String TAG = SpiltVideoPlayer.class.getSimpleName();
+  private static final String THREAD_NAME = "SpiltVideoPlayer";
   private static final int BIT_RATE = 4000000;
 
   private final Object lock = new Object();
@@ -41,7 +43,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
   private WindowSurface inputWindowSurface;
   private TextureEncoder videoEncoder;
 
-  public SpiltVideoRenderer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
+  public SpiltVideoPlayer(SurfaceTexture texture, int width, int height, SplitShaderProgram shaderProgram) {
     this.setName(THREAD_NAME);
     this.previewSurfaceTexture = texture;
     this.surfaceWidth = width;
@@ -189,7 +191,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
         //gl v2
         draw();
 
-        if (videoEncoder != null && inputWindowSurface != null&& videoEncoder.isRecording()) {
+        if (videoEncoder != null && inputWindowSurface != null && videoEncoder.isRecording()) {
           // Draw for recording, swap.
           videoEncoder.notifyFrameAvailableSoon();
           inputWindowSurface.makeCurrent();
@@ -241,9 +243,9 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
     private static final int MSG_SHUTDOWN = 0;
     private static final int MSG_RENDER = 1;
 
-    private WeakReference<SpiltVideoRenderer> weakRenderer;
+    private WeakReference<SpiltVideoPlayer> weakRenderer;
 
-    RenderHandler(SpiltVideoRenderer rt) {
+    RenderHandler(SpiltVideoPlayer rt) {
       weakRenderer = new WeakReference<>(rt);
     }
 
@@ -253,7 +255,7 @@ public class SpiltVideoRenderer extends Thread implements SurfaceTexture.OnFrame
 
     @Override
     public void handleMessage(Message msg) {
-      SpiltVideoRenderer renderer = weakRenderer.get();
+      SpiltVideoPlayer renderer = weakRenderer.get();
       if (renderer == null) {
         Log.w(TAG, "RenderHandler.handleMessage: weak ref is null");
         return;

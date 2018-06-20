@@ -1,6 +1,7 @@
 package com.xiaopo.flying.videosplit.mix;
 
 import android.media.MediaMuxer;
+import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,6 +10,7 @@ import java.io.IOException;
  * @author wupanjie
  */
 public class AVMixingTask implements Runnable {
+  private static final String TAG = "AVMixingTask";
   private final File output;
   private final String videoPath;
   private final String audioPath;
@@ -39,6 +41,7 @@ public class AVMixingTask implements Runnable {
       AudioMixer audioMixer = new AudioMixer(muxer, audioPath);
 
       final long mixDuration = Math.min(videoMixer.getDurationUs(), audioMixer.getDurationUs());
+      Log.d(TAG, "mixAV: duration is " + mixDuration);
       // if audio need transcode, let transcoder to start muxer
       if (!audioMixer.needTranscode()) {
          muxer.start();

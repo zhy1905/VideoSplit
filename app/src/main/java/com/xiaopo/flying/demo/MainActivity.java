@@ -18,9 +18,9 @@ import com.xiaopo.flying.demo.utils.DipPixelKit;
 import com.xiaopo.flying.demo.utils.FileUtil;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
 import com.xiaopo.flying.videosplit.SpiltVideoCreator;
-import com.xiaopo.flying.videosplit.SpiltVideoRenderer;
 import com.xiaopo.flying.videosplit.SplitShaderProgram;
 import com.xiaopo.flying.videosplit.filter.NoFilter;
+import com.xiaopo.flying.videosplit.mix.AVMixingTask;
 import com.yanzhenjie.permission.AndPermission;
 import com.yanzhenjie.permission.PermissionNo;
 import com.yanzhenjie.permission.PermissionYes;
@@ -30,11 +30,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import me.drakeet.multitype.MultiTypeAdapter;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMixListener {
   private static final String TAG = "VideoSpilt";
+
+  private String mp3AudioPath = "/storage/emulated/0/netease/cloudmusic/Music/LastSurprise.mp3";
 
   private RecyclerView videoList;
   private MultiTypeAdapter videoAdapter;
@@ -74,7 +77,8 @@ public class MainActivity extends AppCompatActivity {
 
     videoList.setAdapter(videoAdapter);
 
-    findViewById(R.id.fab_action).setOnClickListener(this::startMix);
+//    findViewById(R.id.fab_action).setOnClickListener(this::toSplitVideo);
+    findViewById(R.id.fab_action).setOnClickListener(view -> mixAV("/storage/emulated/0/Movies/VideoSplit/creator.mp4"));
   }
 
   private void startMix(View view) {
@@ -102,8 +106,8 @@ public class MainActivity extends AppCompatActivity {
     puzzleLayout.layout();
     shaderProgram.setPuzzleLayout(puzzleLayout);
 
-    File file = FileUtil.getNewFile(this, "VideoSplit", "creator.mp4");
-    final SpiltVideoCreator creator = new SpiltVideoCreator(file, width, height, shaderProgram);
+    final File videoSplitFile = FileUtil.getNewFile(this, "VideoSplit", "creator.mp4");
+    final SpiltVideoCreator creator = new SpiltVideoCreator(videoSplitFile, width, height, shaderProgram);
     creator.setViewport(width, height);
     creator.setOnRendererReadyListener(new SpiltVideoCreator.OnRendererReadyListener() {
       @Override
@@ -130,14 +134,18 @@ public class MainActivity extends AppCompatActivity {
       @Override
       public void onProcessEnded() {
         Log.d(TAG, "onProcessEnded: ");
+
+        videoList.postDelayed(() -> mixAV(videoSplitFile.getPath()), 1000);
+
       }
     });
     creator.start();
 
-//    view.postDelayed(()->{
-//      creator.stopRecording();
-//      Toast.makeText(MainActivity.this, "finish", Toast.LENGTH_SHORT).show();
-//    },10000);
+  }
+
+  private void mixAV(final String videoPath) {
+    File file = FileUtil.getNewFile(MainActivity.this, "VideoSplit", "combineMP4.mp4");
+    Executors.newSingleThreadExecutor().execute(new AVMixingTask(file, videoPath, mp3AudioPath, MainActivity.this));
   }
 
   private void toSplitVideo(View view) {
@@ -167,5 +175,15 @@ public class MainActivity extends AppCompatActivity {
   @PermissionNo(300)
   private void getPermissionNo(List<String> deniedPermissions) {
     Toast.makeText(this, "必须要权限", Toast.LENGTH_SHORT).show();
+  }
+
+  @Override
+  public void onMixStarted() {
+    Log.d(TAG, "run: Mix Start");
+  }
+
+  @Override
+  public void onMixEnded() {
+    Log.d(TAG, "run: Mix End");
   }
 }
