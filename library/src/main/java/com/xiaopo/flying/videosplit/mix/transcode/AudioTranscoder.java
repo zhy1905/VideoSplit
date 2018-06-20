@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  */
 public class AudioTranscoder {
   private static final String TAG = "AudioTranscoder";
-  private static final boolean VERBOSE = true;
+  private static final boolean VERBOSE = false;
 
   private static final int DRAIN_STATE_NONE = 0;
   private static final int DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY = 1;

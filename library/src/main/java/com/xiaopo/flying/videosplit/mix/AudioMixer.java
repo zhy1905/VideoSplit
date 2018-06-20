@@ -19,7 +19,7 @@ import java.util.HashSet;
 class AudioMixer {
   private static final String TAG = "AudioMixer";
   private static final int MAX_SAMPLE_SIZE = 512 * 1024;
-  private static final boolean VERBOSE = true;
+  private static final boolean VERBOSE = false;
 
   private static HashSet<String> muxerSupportedAudioType = new HashSet<>();
 

@@ -11,8 +11,12 @@ import android.opengl.Matrix;
 import android.util.Log;
 import android.view.Surface;
 
+import com.xiaopo.flying.puzzlekit.Area;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 
 import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
 
@@ -22,6 +26,7 @@ import static com.xiaopo.flying.videosplit.gl.ShaderProgram.MATRIX_SIZE;
 class VideoPiece extends Thread {
   private static final String TAG = "VideoPiece";
   private static final long TIMEOUT_US = 10000;
+  private static final boolean VERBOSE = false;
 
   private final String path;
   private final float[] positionMatrix = new float[MATRIX_SIZE];
@@ -39,6 +44,7 @@ class VideoPiece extends Thread {
 
   private long presentationTime;
   private boolean isMediaEOS;
+  private CyclicBarrier barrier;
 
   VideoPiece(String path) {
     this.path = path;
@@ -54,7 +60,9 @@ class VideoPiece extends Thread {
     surface = new Surface(outputTexture);
     parseVideoInfo();
 
-    Log.d(TAG, "configOutput: video path is " + path + ",video duration is " + videoDuration);
+    if (VERBOSE) {
+      Log.d(TAG, "configOutput: video path is " + path + ",video duration is " + videoDuration);
+    }
   }
 
   public long getPresentationTimeUs() {
@@ -79,8 +87,9 @@ class VideoPiece extends Thread {
     start();
   }
 
-  void setDisplayArea(RectF area) {
-    setDisplayArea(area.left, area.top, area.right, area.bottom);
+  void setDisplayArea(Area area) {
+    final RectF rect = area.getAreaRect();
+    setDisplayArea(rect.left, rect.top, rect.right, rect.bottom);
   }
 
   private void setDisplayArea(float left, float top, float right, float bottom) {
@@ -104,11 +113,6 @@ class VideoPiece extends Thread {
 
     textureArea.set(offsetW, offsetH, scaleWidth - offsetW, scaleHeight - offsetH);
     normalize(textureArea, scaleWidth, scaleHeight);
-
-//    Log.d(TAG, "width:" + videoWidth + ",height:" + videoHeight + ",scale:" + scale);
-//    Log.d(TAG, "scaleWidth:" + scaleWidth + ",scaleHeight:" + scaleHeight);
-//    Log.d(TAG, "setDisplayArea: texture area:" + textureArea.toShortString());
-
   }
 
   private void normalize(RectF textureArea, float scaleWidth, float scaleHeight) {
@@ -148,6 +152,10 @@ class VideoPiece extends Thread {
     return isMediaEOS;
   }
 
+  public void setBarrier(CyclicBarrier barrier) {
+    this.barrier = barrier;
+  }
+
   @Override
   public void run() {
     MediaExtractor videoExtractor = new MediaExtractor();
@@ -172,7 +180,9 @@ class VideoPiece extends Thread {
     }
 
     if (videoCodec == null) {
-      Log.v(TAG, "MediaCodec null");
+      if (VERBOSE) {
+        Log.d(TAG, "MediaCodec null");
+      }
       return;
     }
     videoCodec.start();
@@ -182,6 +192,14 @@ class VideoPiece extends Thread {
     boolean isVideoEOS = false;
 
     long startMs = System.currentTimeMillis();
+    // 等待同时开始
+    try {
+      if (barrier != null) {
+        barrier.await();
+      }
+    } catch (InterruptedException | BrokenBarrierException e) {
+      e.printStackTrace();
+    }
     while (!Thread.interrupted()) {
       //将资源传递到解码器
       if (!isVideoEOS) {
@@ -191,17 +209,21 @@ class VideoPiece extends Thread {
       int outputBufferIndex = videoCodec.dequeueOutputBuffer(videoBufferInfo, TIMEOUT_US);
       switch (outputBufferIndex) {
         case MediaCodec.INFO_OUTPUT_FORMAT_CHANGED:
-          Log.v(TAG, "format changed");
+          if (VERBOSE) {
+            Log.d(TAG, "format changed");
+          }
           break;
         case MediaCodec.INFO_TRY_AGAIN_LATER:
-          Log.v(TAG, "超时 : " + path);
+          if (VERBOSE) {
+            Log.d(TAG, "超时 : " + path);
+          }
           break;
         case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
-          Log.v(TAG, "output buffers changed");
+          if (VERBOSE) {
+            Log.d(TAG, "output buffers changed");
+          }
           break;
         default:
-          //直接渲染到Surface时使用不到outputBuffer
-          //ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];
           //延时操作
           //如果缓冲区里的可展示时间>当前视频播放的进度，就休眠一下
 //          sleepRender(videoBufferInfo, startMs);
@@ -212,7 +234,9 @@ class VideoPiece extends Thread {
       }
 
       if ((videoBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-        Log.v(TAG, "buffer stream end");
+        if (VERBOSE) {
+          Log.d(TAG, "buffer stream end");
+        }
         break;
       }
     }//end while
@@ -234,8 +258,8 @@ class VideoPiece extends Thread {
     return trackIndex;
   }
 
-  private void sleepRender(MediaCodec.BufferInfo audioBufferInfo, long startMs) {
-    while (audioBufferInfo.presentationTimeUs / 1000 > System.currentTimeMillis() - startMs) {
+  private void sleepRender(MediaCodec.BufferInfo bufferInfo, long startMs) {
+    while (bufferInfo.presentationTimeUs / 1000 > System.currentTimeMillis() - startMs) {
       try {
         Thread.sleep(10);
       } catch (InterruptedException e) {
@@ -254,7 +278,9 @@ class VideoPiece extends Thread {
       if (sampleSize < 0) {
         decoder.queueInputBuffer(inputBufferIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
         isMediaEOS = true;
-        Log.v(TAG, "media eos");
+        if (VERBOSE) {
+          Log.d(TAG, "media eos");
+        }
       } else {
         decoder.queueInputBuffer(inputBufferIndex, 0, sampleSize, extractor.getSampleTime(), 0);
         extractor.advance();

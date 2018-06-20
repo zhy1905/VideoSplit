@@ -8,13 +8,13 @@ import android.view.View;
  * @author wupanjie
  */
 
-public class VideoItemDecoration extends RecyclerView.ItemDecoration {
+public class GridItemDecoration extends RecyclerView.ItemDecoration {
 
   private int spanCount;
   private int spacing;
   private boolean includeEdge;
 
-  public VideoItemDecoration(int spanCount, int spacing, boolean includeEdge) {
+  public GridItemDecoration(int spanCount, int spacing, boolean includeEdge) {
     this.spanCount = spanCount;
     this.spacing = spacing;
     this.includeEdge = includeEdge;

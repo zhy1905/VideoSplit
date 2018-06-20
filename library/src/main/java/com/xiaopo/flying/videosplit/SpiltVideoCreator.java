@@ -28,7 +28,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
   private EglCore eglCore;
 
   private RenderHandler handler;
-  private OnRendererReadyListener onRendererReadyListener;
+  private OnRendererListener onRendererReadyListener;
 
   private SplitShaderProgram shaderProgram;
 
@@ -77,14 +77,20 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     shaderProgram.setOnFrameAvailableListener(this);
 
     outputVideoDuration = shaderProgram.getLongestVideoPieceDuration();
-    Log.d(TAG, "initGLComponents: output video duration is " + outputVideoDuration);
 
     onSetupComplete();
   }
 
 
   private void deinitGL() {
-    stopMixing();
+    if (videoEncoder != null) {
+      videoEncoder.stopRecording();
+      videoEncoder = null;
+    }
+    if (inputWindowSurface != null) {
+      inputWindowSurface.release();
+      inputWindowSurface = null;
+    }
     shaderProgram.release();
     eglCore.release();
   }
@@ -119,11 +125,11 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     onRendererReadyListener.onRendererFinished();
   }
 
-  public void shutdown() {
+  private void shutdown() {
     Looper.myLooper().quit();
   }
 
-  public void play() {
+  public void create() {
     startTime = System.currentTimeMillis();
     if (onProcessProgressListener != null) {
       onProcessProgressListener.onProcessStarted();
@@ -139,7 +145,6 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
   public void stopMixing() {
     synchronized (lock) {
       if (videoEncoder != null) {
-        Log.d(TAG, "stopping mixing, mVideoEncoder=" + videoEncoder);
         videoEncoder.stopRecording();
         videoEncoder = null;
       }
@@ -149,10 +154,17 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
       }
 
       if (onProcessProgressListener != null) {
+        // 等待视频写入完成
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
         onProcessProgressListener.onProcessEnded();
       }
     }
 
+    handler.sendShutdown();
   }
 
   private void draw() {
@@ -160,6 +172,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
   }
 
   private boolean started = true;
+  private int lastProgress = -1;
 
   private void render() {
     synchronized (lock) {
@@ -170,29 +183,27 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
         videoEncoder.notifyFrameAvailableSoon();
         inputWindowSurface.makeCurrent();
         draw();
-        Log.d(TAG, "render: presentation time is " + shaderProgram.getPresentationTimeUs());
         inputWindowSurface.setPresentationTime(shaderProgram.getPresentationTimeUs() * 1000);
         inputWindowSurface.swapBuffers();
 
         if (started) {
-          Log.d(TAG, "render: start time is " + startTime);
           startTime = shaderProgram.getPresentationTimeUs();
           started = false;
         } else {
           final long usageTime = shaderProgram.getPresentationTimeUs() - startTime;
-          Log.d(TAG, "render: usage time is " + usageTime);
           if (shaderProgram.isFinished() || usageTime >= outputVideoDuration * 1000) {
-            Log.d(TAG, "render: stop");
             stopMixing();
             return;
           }
 
           if (!shaderProgram.isFinished() || onProcessProgressListener != null) {
-            onProcessProgressListener.onProcessProgressChanged((int) ((float) usageTime / (outputVideoDuration * 1000) * 100));
+            int progress = (int) ((float) usageTime / (outputVideoDuration * 1000) * 100);
+            if (lastProgress != progress) {
+              onProcessProgressListener.onProcessProgressChanged(progress);
+            }
+            lastProgress = progress;
           }
         }
-
-
       }
 
     }
@@ -206,7 +217,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     return handler;
   }
 
-  public void setOnRendererReadyListener(OnRendererReadyListener listener) {
+  public void setOnRendererReadyListener(OnRendererListener listener) {
     this.onRendererReadyListener = listener;
   }
 
@@ -252,7 +263,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     this.onProcessProgressListener = onProcessProgressListener;
   }
 
-  public interface OnRendererReadyListener {
+  public interface OnRendererListener {
 
     void onRendererReady();
 

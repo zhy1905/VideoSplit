@@ -1,6 +1,7 @@
 package com.xiaopo.flying.demo;
 
 import android.Manifest;
+import android.graphics.Color;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
@@ -154,7 +155,9 @@ public class SplitVideoActivity extends AppCompatActivity implements
     PuzzleLayout puzzleLayout = puzzleLayouts.get(videoPaths.size() - 1);
     puzzleLayout.setOuterBounds(new RectF(0, 0, width, height));
     puzzleLayout.layout();
+    puzzleLayout.setPadding(12);
     shaderProgram.setPuzzleLayout(puzzleLayout);
+    shaderProgram.setBackgroundColor(Color.parseColor("#532421"));
 
     renderer = new SpiltVideoPlayer(surfaceTexture, width, height, shaderProgram);
     renderer.setViewport(width, height);

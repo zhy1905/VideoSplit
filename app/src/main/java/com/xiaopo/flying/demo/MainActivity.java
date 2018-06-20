@@ -2,39 +2,34 @@ package com.xiaopo.flying.demo;
 
 import android.Manifest;
 import android.content.Intent;
-import android.graphics.RectF;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import com.xiaopo.flying.demo.filter.XprollFilter;
 import com.xiaopo.flying.demo.layout.OneLayout;
 import com.xiaopo.flying.demo.layout.ThreeLayout;
 import com.xiaopo.flying.demo.layout.TwoLayout;
 import com.xiaopo.flying.demo.utils.DipPixelKit;
 import com.xiaopo.flying.demo.utils.FileUtil;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
-import com.xiaopo.flying.videosplit.SpiltVideoCreator;
-import com.xiaopo.flying.videosplit.SplitShaderProgram;
-import com.xiaopo.flying.videosplit.filter.NoFilter;
-import com.xiaopo.flying.videosplit.mix.AVMixingTask;
+import com.xiaopo.flying.videosplit.VideoSplicer;
 import com.yanzhenjie.permission.AndPermission;
 import com.yanzhenjie.permission.PermissionNo;
 import com.yanzhenjie.permission.PermissionYes;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executors;
 
 import me.drakeet.multitype.MultiTypeAdapter;
 
-public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMixListener {
+public class MainActivity extends AppCompatActivity{
   private static final String TAG = "VideoSpilt";
 
   private String mp3AudioPath = "/storage/emulated/0/netease/cloudmusic/Music/LastSurprise.mp3";
@@ -64,8 +59,8 @@ public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMi
     videoList = findViewById(R.id.video_list);
     videoList.setLayoutManager(new GridLayoutManager(this, 4));
     final int space = DipPixelKit.dip2px(MainActivity.this, 2);
-    VideoItemDecoration itemDecoration
-        = new VideoItemDecoration(4, space, false);
+    GridItemDecoration itemDecoration
+        = new GridItemDecoration(4, space, false);
     videoList.addItemDecoration(itemDecoration);
 
     videoAdapter = new MultiTypeAdapter();
@@ -77,11 +72,15 @@ public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMi
 
     videoList.setAdapter(videoAdapter);
 
-//    findViewById(R.id.fab_action).setOnClickListener(this::toSplitVideo);
-    findViewById(R.id.fab_action).setOnClickListener(view -> mixAV("/storage/emulated/0/Movies/VideoSplit/creator.mp4"));
+    findViewById(R.id.fab_action).setOnClickListener(this::startMix);
   }
 
   private void startMix(View view) {
+    if (selectedPositions.isEmpty()){
+      Toast.makeText(MainActivity.this, "Select Video", Toast.LENGTH_SHORT).show();
+      return;
+    }
+
     final int width = 1080;
     final int height = 1080;
 
@@ -95,57 +94,21 @@ public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMi
       videoPaths.add(videoAttachments.get(selectedPosition).getPath());
     }
 
-    SplitShaderProgram shaderProgram = new SplitShaderProgram();
+    VideoSplicer splicer = VideoSplicer.newInstance(this)
+        .height(height)
+        .width(width)
+        .padding(12)
+        .audioPath(mp3AudioPath)
+        .backgroundColor(Color.rgb(254, 248, 201))
+        .outputFile(FileUtil.getNewFile(this,"VideoSplit", "fromVideoSplicer.mp4"))
+        .puzzleLayout(puzzleLayouts.get(videoPaths.size() - 1));
 
     for (String path : videoPaths) {
-      shaderProgram.addPiece(path, NoFilter.class);
+      splicer.addVideo(path, new XprollFilter(this));
     }
 
-    PuzzleLayout puzzleLayout = puzzleLayouts.get(videoPaths.size() - 1);
-    puzzleLayout.setOuterBounds(new RectF(0, 0, width, height));
-    puzzleLayout.layout();
-    shaderProgram.setPuzzleLayout(puzzleLayout);
+    splicer.create();
 
-    final File videoSplitFile = FileUtil.getNewFile(this, "VideoSplit", "creator.mp4");
-    final SpiltVideoCreator creator = new SpiltVideoCreator(videoSplitFile, width, height, shaderProgram);
-    creator.setViewport(width, height);
-    creator.setOnRendererReadyListener(new SpiltVideoCreator.OnRendererReadyListener() {
-      @Override
-      public void onRendererReady() {
-        creator.play();
-      }
-
-      @Override
-      public void onRendererFinished() {
-        Log.d(TAG, "onRendererFinished: ");
-      }
-    });
-    creator.setOnProcessProgressListener(new SpiltVideoCreator.OnProcessProgressListener() {
-      @Override
-      public void onProcessStarted() {
-        Log.d(TAG, "onProcessStarted: ");
-      }
-
-      @Override
-      public void onProcessProgressChanged(int progress) {
-        Log.d(TAG, "onProcessProgressChanged: progress is " + progress);
-      }
-
-      @Override
-      public void onProcessEnded() {
-        Log.d(TAG, "onProcessEnded: ");
-
-        videoList.postDelayed(() -> mixAV(videoSplitFile.getPath()), 1000);
-
-      }
-    });
-    creator.start();
-
-  }
-
-  private void mixAV(final String videoPath) {
-    File file = FileUtil.getNewFile(MainActivity.this, "VideoSplit", "combineMP4.mp4");
-    Executors.newSingleThreadExecutor().execute(new AVMixingTask(file, videoPath, mp3AudioPath, MainActivity.this));
   }
 
   private void toSplitVideo(View view) {
@@ -177,13 +140,4 @@ public class MainActivity extends AppCompatActivity implements AVMixingTask.AVMi
     Toast.makeText(this, "必须要权限", Toast.LENGTH_SHORT).show();
   }
 
-  @Override
-  public void onMixStarted() {
-    Log.d(TAG, "run: Mix Start");
-  }
-
-  @Override
-  public void onMixEnded() {
-    Log.d(TAG, "run: Mix End");
-  }
 }

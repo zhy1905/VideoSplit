@@ -1,10 +1,10 @@
 package com.xiaopo.flying.videosplit;
 
+import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.support.annotation.Nullable;
-import android.util.Log;
 
 import com.xiaopo.flying.puzzlekit.Area;
 import com.xiaopo.flying.puzzlekit.PuzzleLayout;
@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.concurrent.CyclicBarrier;
 
 import static com.xiaopo.flying.videosplit.filter.ShaderFilter.MATRIX_UNIFORM;
 import static com.xiaopo.flying.videosplit.filter.ShaderFilter.POSITION_ATTRIBUTE;
@@ -52,6 +53,10 @@ public class SplitShaderProgram extends ShaderProgram {
   private VideoPiece shortestDurationPiece;
   private VideoPiece longestDurationPiece;
 
+  private float colorRed;
+  private float colorBlue;
+  private float colorGreen;
+
   public void setPuzzleLayout(PuzzleLayout puzzleLayout) {
     this.puzzleLayout = puzzleLayout;
   }
@@ -85,6 +90,12 @@ public class SplitShaderProgram extends ShaderProgram {
     shaderFilters.add(cached);
   }
 
+  public void setBackgroundColor(int backgroundColor) {
+    this.colorRed = Color.red(backgroundColor) / 255f;
+    this.colorBlue = Color.blue(backgroundColor) / 255f;
+    this.colorGreen = Color.green(backgroundColor) / 255f;
+  }
+
   @SuppressWarnings("unchecked")
   @Nullable
   public <T extends ShaderFilter> T getShaderFilter(Class<T> filterClass) {
@@ -104,8 +115,10 @@ public class SplitShaderProgram extends ShaderProgram {
     final int size = videoPieces.size();
     int[] textureIds = new int[size];
     generateTextures(size, textureIds, 0);
+    CyclicBarrier cyclicBarrier = new CyclicBarrier(size);
     for (int i = 0; i < size; i++) {
       videoPieces.get(i).configOutput(textureIds[i]);
+      videoPieces.get(i).setBarrier(cyclicBarrier);
     }
 
     shortestDurationPiece = Collections.min(videoPieces, new Comparator<VideoPiece>() {
@@ -141,7 +154,7 @@ public class SplitShaderProgram extends ShaderProgram {
 
   @Override
   public void run() {
-    GLES20.glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+    GLES20.glClearColor(colorRed, colorGreen, colorBlue, 1.0f);
     GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
     GLES20.glViewport(0, 0, getViewportWidth(), getViewportHeight());
@@ -159,7 +172,7 @@ public class SplitShaderProgram extends ShaderProgram {
       filter.bindUniform();
 
       VideoPiece piece = videoPieces.get(i % pieceCount);
-      piece.setDisplayArea(area.getAreaRect());
+      piece.setDisplayArea(area);
       piece.setTexture(textureHandle, textureMatrixHandle);
       piece.setMatrix(matrixHandle, viewMatrix, projectionMatrix);
       drawElements(filter);
