@@ -41,6 +41,7 @@ class AudioMixer {
   private int offset = 100;
   private ByteBuffer dstBuffer;
   private MediaCodec.BufferInfo bufferInfo;
+  private long writtenPresentationTimeUs;
   private boolean mixEnded;
 
   private AudioTranscoder transcoder;
@@ -86,7 +87,7 @@ class AudioMixer {
     }
   }
 
-  boolean needTranscode(){
+  boolean needTranscode() {
     return transcoder != null;
   }
 
@@ -95,12 +96,13 @@ class AudioMixer {
       return false;
     }
 
-    if (transcoder != null){
-      if (transcoder.isFinished()){
+    if (transcoder != null) {
+      if (transcoder.isFinished()) {
         mixEnded = true;
         return false;
       }
       transcoder.mix(maxDuration);
+      writtenPresentationTimeUs = transcoder.getWrittenPresentationTimeUs();
       return true;
     }
 
@@ -118,6 +120,7 @@ class AudioMixer {
     bufferInfo.flags = isKeyFrame ? MediaCodec.BUFFER_FLAG_SYNC_FRAME : 0;
     muxer.writeSampleData(writeToMuxerTrackIndex, dstBuffer, bufferInfo);
     extractor.advance();
+    writtenPresentationTimeUs = bufferInfo.presentationTimeUs;
     frameCount++;
 
     if (VERBOSE) {
@@ -136,5 +139,9 @@ class AudioMixer {
 
   long getDurationUs() {
     return durationUs;
+  }
+
+  long getWrittenPresentationTimeUs() {
+    return writtenPresentationTimeUs;
   }
 }

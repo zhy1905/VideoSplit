@@ -4,6 +4,7 @@ import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.support.v4.math.MathUtils;
 import android.util.Log;
 
 import com.xiaopo.flying.videosplit.gl.EglCore;
@@ -15,9 +16,13 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 
-public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameAvailableListener {
+/**
+ * @author wupanjie
+ */
+class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameAvailableListener {
   private static final String TAG = SpiltVideoCreator.class.getSimpleName();
-  private static final String THREAD_NAME = "SpiltVideoPlayer";
+  private static final String THREAD_NAME = "SpiltVideoCreator";
+  private static final long PROGRESS_INTERVAL_STEPS = 10;
   private static final int BIT_RATE = 4000000;
 
   private final Object lock = new Object();
@@ -172,7 +177,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
   }
 
   private boolean started = true;
-  private int lastProgress = -1;
+  private long loopCount;
 
   private void render() {
     synchronized (lock) {
@@ -180,6 +185,7 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
       shaderProgram.updatePreviewTexture();
 
       if (videoEncoder != null && inputWindowSurface != null && videoEncoder.isRecording()) {
+        loopCount++;
         videoEncoder.notifyFrameAvailableSoon();
         inputWindowSurface.makeCurrent();
         draw();
@@ -196,12 +202,9 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
             return;
           }
 
-          if (!shaderProgram.isFinished() || onProcessProgressListener != null) {
-            int progress = (int) ((float) usageTime / (outputVideoDuration * 1000) * 100);
-            if (lastProgress != progress) {
-              onProcessProgressListener.onProcessProgressChanged(progress);
-            }
-            lastProgress = progress;
+          if (!shaderProgram.isFinished() && onProcessProgressListener != null && loopCount % PROGRESS_INTERVAL_STEPS == 0) {
+            double progress = MathUtils.clamp((double) usageTime / (outputVideoDuration * 1000), 0.0, 1.0);
+            onProcessProgressListener.onProcessProgressChanged(progress);
           }
         }
       }
@@ -259,22 +262,22 @@ public class SpiltVideoCreator extends Thread implements SurfaceTexture.OnFrameA
     }
   }
 
-  public void setOnProcessProgressListener(OnProcessProgressListener onProcessProgressListener) {
+  void setOnProcessProgressListener(OnProcessProgressListener onProcessProgressListener) {
     this.onProcessProgressListener = onProcessProgressListener;
   }
 
-  public interface OnRendererListener {
+  interface OnRendererListener {
 
     void onRendererReady();
 
     void onRendererFinished();
   }
 
-  public interface OnProcessProgressListener {
+  interface OnProcessProgressListener {
 
     void onProcessStarted();
 
-    void onProcessProgressChanged(int progress);
+    void onProcessProgressChanged(double progress);
 
     void onProcessEnded();
 

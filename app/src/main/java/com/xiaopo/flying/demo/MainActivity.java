@@ -1,15 +1,21 @@
 package com.xiaopo.flying.demo;
 
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import com.xiaopo.flying.demo.filter.IF1977Filter;
 import com.xiaopo.flying.demo.filter.XprollFilter;
 import com.xiaopo.flying.demo.layout.OneLayout;
 import com.xiaopo.flying.demo.layout.ThreeLayout;
@@ -29,7 +35,7 @@ import java.util.Set;
 
 import me.drakeet.multitype.MultiTypeAdapter;
 
-public class MainActivity extends AppCompatActivity{
+public class MainActivity extends AppCompatActivity {
   private static final String TAG = "VideoSpilt";
 
   private String mp3AudioPath = "/storage/emulated/0/netease/cloudmusic/Music/LastSurprise.mp3";
@@ -38,6 +44,7 @@ public class MainActivity extends AppCompatActivity{
   private MultiTypeAdapter videoAdapter;
   private Set<Integer> selectedPositions = new LinkedHashSet<>();
   private ArrayList<VideoAttachment> videoAttachments = new ArrayList<>();
+  private int processProgress;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -76,7 +83,7 @@ public class MainActivity extends AppCompatActivity{
   }
 
   private void startMix(View view) {
-    if (selectedPositions.isEmpty()){
+    if (selectedPositions.isEmpty()) {
       Toast.makeText(MainActivity.this, "Select Video", Toast.LENGTH_SHORT).show();
       return;
     }
@@ -94,17 +101,47 @@ public class MainActivity extends AppCompatActivity{
       videoPaths.add(videoAttachments.get(selectedPosition).getPath());
     }
 
+    ProgressDialog progressDialog = new ProgressDialog(this, R.style.Progress);
+    progressDialog.setCancelable(false);
+    progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+    progressDialog.show();
+
+    final Runnable changeProgress = new Runnable() {
+      @Override
+      public void run() {
+        progressDialog.setProgress(processProgress);
+      }
+    };
+
     VideoSplicer splicer = VideoSplicer.newInstance(this)
         .height(height)
         .width(width)
         .padding(12)
         .audioPath(mp3AudioPath)
         .backgroundColor(Color.rgb(254, 248, 201))
-        .outputFile(FileUtil.getNewFile(this,"VideoSplit", "fromVideoSplicer.mp4"))
-        .puzzleLayout(puzzleLayouts.get(videoPaths.size() - 1));
+        .outputFile(FileUtil.getNewFile(this, "VideoSplit", "fromVideoSplicer.mp4"))
+        .puzzleLayout(puzzleLayouts.get(videoPaths.size() - 1))
+        .progressListener(new VideoSplicer.OnProgressListener() {
+          @Override
+          public void onStart() {
+
+          }
+
+          @Override
+          public void onProgress(double progress) {
+            processProgress = (int) (progress * 100);
+            runOnUiThread(changeProgress);
+            Log.d(TAG, "onProgress: progress -> " + progress);
+          }
+
+          @Override
+          public void onEnd() {
+            progressDialog.dismiss();
+          }
+        });
 
     for (String path : videoPaths) {
-      splicer.addVideo(path, new XprollFilter(this));
+      splicer.addVideo(path, new IF1977Filter(this));
     }
 
     splicer.create();

@@ -28,6 +28,7 @@ public class VideoSplicer {
   private File outputFile;
   private String audioPath;
   private File tempFile;
+  private OnProgressListener onProgressListener;
 
   private VideoSplicer(Context context) {
     this.context = context;
@@ -83,6 +84,11 @@ public class VideoSplicer {
     return this;
   }
 
+  public VideoSplicer progressListener(OnProgressListener onProgressListener) {
+    this.onProgressListener = onProgressListener;
+    return this;
+  }
+
   public void create() {
     puzzleLayout.setOuterBounds(new RectF(0, 0, width, height));
     puzzleLayout.layout();
@@ -95,29 +101,33 @@ public class VideoSplicer {
     creator.setOnRendererReadyListener(new SpiltVideoCreator.OnRendererListener() {
       @Override
       public void onRendererReady() {
-        Log.d(TAG, "onRendererReady: ");
         creator.create();
+
+        if (onProgressListener != null) {
+          onProgressListener.onStart();
+        }
       }
 
       @Override
       public void onRendererFinished() {
-        Log.d(TAG, "onRendererFinished: ");
+
       }
     });
     creator.setOnProcessProgressListener(new SpiltVideoCreator.OnProcessProgressListener() {
       @Override
       public void onProcessStarted() {
-        Log.d(TAG, "onProcessStarted: ");
+
       }
 
       @Override
-      public void onProcessProgressChanged(int progress) {
-        Log.d(TAG, "onProcessProgressChanged: progress -> " + progress);
+      public void onProcessProgressChanged(double progress) {
+        if (onProgressListener != null) {
+          onProgressListener.onProgress(progress / 2.0);
+        }
       }
 
       @Override
       public void onProcessEnded() {
-        Log.d(TAG, "onProcessEnded: ");
         mixAV();
       }
     });
@@ -129,14 +139,31 @@ public class VideoSplicer {
         .execute(new AVMixingTask(outputFile, tempFile.getAbsolutePath(), audioPath, new AVMixingTask.AVMixListener() {
           @Override
           public void onMixStarted() {
-            Log.d(TAG, "onMixStarted: ");
+
+          }
+
+          @Override
+          public void onMixProgress(double progress) {
+            if (onProgressListener != null) {
+              onProgressListener.onProgress(0.5 + progress / 2.0);
+            }
           }
 
           @Override
           public void onMixEnded() {
-            tempFile.delete();
-            Log.d(TAG, "onMixEnded: ");
+            boolean success = tempFile.delete();
+            if (onProgressListener != null) {
+              onProgressListener.onEnd();
+            }
           }
         }));
+  }
+
+  public interface OnProgressListener {
+    void onStart();
+
+    void onProgress(double progress);
+
+    void onEnd();
   }
 }

@@ -202,6 +202,11 @@ public class SplitVideoActivity extends AppCompatActivity implements
   }
 
   @Override
+  public void onMixProgress(double progress) {
+
+  }
+
+  @Override
   public void onMixEnded() {
     mainHandler.post(new Runnable() {
       @Override

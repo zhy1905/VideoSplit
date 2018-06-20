@@ -30,6 +30,7 @@ class VideoMixer {
   private int offset = 100;
   private ByteBuffer dstBuffer;
   private MediaCodec.BufferInfo bufferInfo;
+  private long writtenPresentationTimeUs;
   private boolean mixEnded;
 
   VideoMixer(MediaMuxer muxer, String videoPath) {
@@ -60,7 +61,7 @@ class VideoMixer {
       writeToMuxerTrackIndex = muxer.addTrack(format);
       if (VERBOSE) {
         Log.d(TAG, "Video Info:\n" +
-            "mimeType:" + format.getString(MediaFormat.KEY_MIME) + "\n"+
+            "mimeType:" + format.getString(MediaFormat.KEY_MIME) + "\n" +
             "duration:" + durationUs / 1000000 + "s\n");
       }
     } catch (IOException e) {
@@ -69,7 +70,7 @@ class VideoMixer {
   }
 
   boolean mix(final long maxDuration) {
-    if (mixEnded){
+    if (mixEnded) {
       return false;
     }
     bufferInfo.offset = offset;
@@ -84,6 +85,7 @@ class VideoMixer {
     bufferInfo.flags = extractor.getSampleFlags();
     muxer.writeSampleData(writeToMuxerTrackIndex, dstBuffer, bufferInfo);
     extractor.advance();
+    writtenPresentationTimeUs = bufferInfo.presentationTimeUs;
     frameCount++;
 
     if (VERBOSE) {
@@ -103,5 +105,9 @@ class VideoMixer {
 
   long getDurationUs() {
     return durationUs;
+  }
+
+  long getWrittenPresentationTimeUs() {
+    return writtenPresentationTimeUs;
   }
 }

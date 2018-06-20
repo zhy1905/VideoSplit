@@ -33,10 +33,15 @@ public class AudioTranscoder {
   private final MediaExtractor extractor;
 
   private final int inputAudioTrackIndex;
-  // mp3 audio/mpeg
+
+  /**
+   * mp3 audio/mpeg
+   */
   private final MediaFormat inputAudioFormat;
 
-  // aac audio/mp4a-latm
+  /**
+   * aac audio/mp4a-latm
+   */
   private MediaFormat outputAudioFormat;
 
   private MediaCodec decoder;
@@ -167,6 +172,8 @@ public class AudioTranscoder {
         audioChannel.setActualDecodedFormat(decoder.getOutputFormat());
       case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
         return DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY;
+      default:
+        // no-ops
     }
 
     if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -196,11 +203,12 @@ public class AudioTranscoder {
 
         writeToMuxerTrackIndex = muxer.addTrack(actualOutputFormat);
         muxer.start();
-//        mMuxer.setOutputFormat(SAMPLE_TYPE, actualOutputFormat);
         return DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY;
       case MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED:
         encoderBuffers = new MediaCodecBufferCompatWrapper(encoder);
         return DRAIN_STATE_SHOULD_RETRY_IMMEDIATELY;
+      default:
+        // no-ops
     }
 
     if (actualOutputFormat == null) {
@@ -252,5 +260,9 @@ public class AudioTranscoder {
 
   public boolean isFinished() {
     return isTranscodeEnd;
+  }
+
+  public long getWrittenPresentationTimeUs() {
+    return writtenPresentationTimeUs;
   }
 }
